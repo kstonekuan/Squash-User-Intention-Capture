@@ -18,8 +18,6 @@ const analysisResults = document.querySelector('.analysis-results') as HTMLDivEl
 const workflowSummary = document.getElementById('workflowSummary') as HTMLParagraphElement;
 const workflowSteps = document.getElementById('workflowSteps') as HTMLDivElement;
 const workflowSuggestions = document.getElementById('workflowSuggestions') as HTMLUListElement;
-const customPrompt = document.getElementById('customPrompt') as HTMLTextAreaElement;
-const reanalyzeBtn = document.getElementById('reanalyzeBtn') as HTMLButtonElement;
 
 // Analysis debug elements
 const toggleDebugBtn = document.getElementById('toggleDebugBtn') as HTMLButtonElement;
@@ -364,17 +362,6 @@ eventsTab.addEventListener('click', () => setActiveTab('events'));
 analysisTab.addEventListener('click', () => setActiveTab('analysis'));
 debugTab.addEventListener('click', () => setActiveTab('debug'));
 
-reanalyzeBtn.addEventListener('click', () => {
-  const prompt = customPrompt.value.trim();
-  if (prompt) {
-    chrome.runtime.sendMessage({ 
-      kind: 'analyzeWorkflow',
-      customPrompt: prompt
-    });
-  } else {
-    chrome.runtime.sendMessage({ kind: 'analyzeWorkflow' });
-  }
-});
 
 // Debug tab functionality
 // Check environment
