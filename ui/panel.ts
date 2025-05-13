@@ -15,6 +15,7 @@ const analysisContent = document.getElementById('analysisContent') as HTMLDivEle
 const debugContent = document.getElementById('debugContent') as HTMLDivElement;
 const analysisPlaceholder = document.querySelector('.analysis-placeholder') as HTMLDivElement;
 const analysisResults = document.querySelector('.analysis-results') as HTMLDivElement;
+const analysisLoading = document.querySelector('.analysis-loading') as HTMLDivElement;
 const workflowSummary = document.getElementById('workflowSummary') as HTMLParagraphElement;
 const workflowSteps = document.getElementById('workflowSteps') as HTMLDivElement;
 const workflowSuggestions = document.getElementById('workflowSuggestions') as HTMLUListElement;
@@ -61,6 +62,7 @@ port.onMessage.addListener((message: PortMessage) => {
   }
   
   if ('analysis' in message && message.analysis) {
+    hideAnalysisLoading();
     displayAnalysis(message.analysis);
   }
 });
@@ -224,13 +226,30 @@ function formatTime(timestamp: number): string {
   return date.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+// Show analysis loading indicator
+function showAnalysisLoading(): void {
+  // Hide placeholder and results
+  analysisPlaceholder.style.display = 'none';
+  analysisResults.style.display = 'none';
+  
+  // Show loading indicator
+  analysisLoading.style.display = 'flex';
+}
+
+// Hide analysis loading indicator
+function hideAnalysisLoading(): void {
+  // Hide loading indicator
+  analysisLoading.style.display = 'none';
+}
+
 // Display analysis results
 function displayAnalysis(analysis: WorkflowAnalysis): void {
   // Switch to the analysis tab
   setActiveTab('analysis');
   
-  // Hide placeholder, show results
+  // Hide placeholder and loading, show results
   analysisPlaceholder.style.display = 'none';
+  analysisLoading.style.display = 'none';
   analysisResults.style.display = 'block';
   
   // Update summary
@@ -330,6 +349,11 @@ function stopRecording(): void {
   startMarkBtn.disabled = false;
   stopMarkBtn.disabled = true;
   
+  // Switch to analysis tab and show loading indicator
+  setActiveTab('analysis');
+  showAnalysisLoading();
+  
+  // Send stop message to service worker
   chrome.runtime.sendMessage({ kind: 'mark', action: 'stop' });
 }
 
@@ -350,6 +374,7 @@ clearBtn.addEventListener('click', () => {
   // Reset analysis
   analysisPlaceholder.style.display = 'block';
   analysisResults.style.display = 'none';
+  analysisLoading.style.display = 'none';
   workflowSteps.innerHTML = '';
   workflowSuggestions.innerHTML = '';
   workflowSummary.textContent = '';
