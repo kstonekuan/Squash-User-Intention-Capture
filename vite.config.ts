@@ -8,12 +8,16 @@ export default defineConfig({
       manifest: {
         manifest_version: 3,
         name: "Workflow Recorder",
-        version: "0.2.0",
+        version: "0.5.0",
         action: { default_title: "Start / stop recorder" },
         permissions: [
           "tabs", "webNavigation", "sidePanel",
-          "storage", "downloads"
+          "storage", "downloads", "aiLanguageModelOriginTrial"
         ],
+        trial_tokens: [
+          "Alnh5NtJggd3VseHmshny+4of2NiIFZ+sfU3bdb0V2qXTa/VxU/Ds8OLOhenJmr+srNa2wEoq0yDzQwe2UH8bwgAAAB4eyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8vbWVnaW1oaGpsaW5rbWNrbmNsaGFvY2NubmRqam9qZ2siLCJmZWF0dXJlIjoiQUlQcm9tcHRBUElGb3JFeHRlbnNpb24iLCJleHBpcnkiOjE3NjA0ODYzOTl9"
+        ],
+        "minimum_chrome_version": "131",
         host_permissions: ["<all_urls>"],
         background: { 
           service_worker: "src/sw.ts", 

@@ -17,8 +17,8 @@ type UserEvent = {
 
 // Utility to get a good element descriptor for logging
 function getElementDescription(el: HTMLElement): string {
-  // Get element tag name
-  let desc = el.tagName.toLowerCase();
+  // Get element tag name (with null check)
+  let desc = el.tagName ? el.tagName.toLowerCase() : 'unknown';
   
   // Add id if present
   if (el.id) {
@@ -27,24 +27,33 @@ function getElementDescription(el: HTMLElement): string {
 
   // Add classes if any
   if (el.className && typeof el.className === 'string') {
-    const classes = el.className.split(' ')
-      .filter(c => c)
-      .map(c => `.${c}`)
-      .join('');
-    if (classes) {
-      desc += classes;
+    try {
+      const classes = el.className.split(' ')
+        .filter(c => c)
+        .map(c => `.${c}`)
+        .join('');
+      if (classes) {
+        desc += classes;
+      }
+    } catch (error) {
+      console.error('Error processing className:', error);
     }
   }
 
   // Add text content hint for buttons, links, etc.
-  if (
-    ['A', 'BUTTON', 'LABEL', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']
-      .includes(el.tagName) && 
-    el.textContent && 
-    el.textContent.trim()
-  ) {
-    const text = el.textContent.trim().substring(0, 20);
-    desc += ` "${text}${text.length > 20 ? '...' : ''}"`;
+  try {
+    if (
+      el.tagName && 
+      ['A', 'BUTTON', 'LABEL', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']
+        .includes(el.tagName) && 
+      el.textContent && 
+      el.textContent.trim()
+    ) {
+      const text = el.textContent.trim().substring(0, 20);
+      desc += ` "${text}${text.length > 20 ? '...' : ''}"`;
+    }
+  } catch (error) {
+    console.error('Error processing textContent:', error);
   }
 
   return desc;
@@ -62,56 +71,76 @@ function flush() {
 
 // Record an interaction event
 function recordEvent(type: string, event: Event) {
-  if (!event.target) return;
-  
-  const target = event.target as HTMLElement;
-  let value: string | undefined;
-  let action = type;
-  
-  // Extract additional info based on event type
-  if (type === 'input' || type === 'change') {
-    if (target instanceof HTMLInputElement || 
-        target instanceof HTMLSelectElement || 
-        target instanceof HTMLTextAreaElement) {
-      if (target.type === 'password') {
-        // Mask password values
-        value = '••••••••';
-      } else {
-        value = target.value;
-      }
+  try {
+    if (!event.target) return;
+    
+    // Ensure target is an HTMLElement before proceeding
+    if (!(event.target instanceof HTMLElement)) {
+      console.warn('Event target is not an HTMLElement', event.target);
+      return;
     }
-  } else if (type === 'submit') {
-    // For form submissions
-    action = 'submit';
-  }
-  
-  const userEvent: UserEvent = {
-    type: 'user',
-    target: getElementDescription(target),
-    action,
-    t: Date.now(),
-    url: window.location.href
-  };
-  
-  if (value !== undefined) {
-    userEvent.value = value;
-  }
-  
-  batch.push(userEvent);
-  
-  if (batch.length >= BATCH_MAX) {
-    flush();
+    
+    const target = event.target as HTMLElement;
+    let value: string | undefined;
+    let action = type;
+    
+    // Extract additional info based on event type
+    if (type === 'input' || type === 'change') {
+      if (target instanceof HTMLInputElement || 
+          target instanceof HTMLSelectElement || 
+          target instanceof HTMLTextAreaElement) {
+        if (target.type === 'password') {
+          // Mask password values
+          value = '••••••••';
+        } else {
+          value = target.value;
+        }
+      }
+    } else if (type === 'submit') {
+      // For form submissions
+      action = 'submit';
+    }
+    
+    const userEvent: UserEvent = {
+      type: 'user',
+      target: getElementDescription(target),
+      action,
+      t: Date.now(),
+      url: window.location.href
+    };
+    
+    if (value !== undefined) {
+      userEvent.value = value;
+    }
+    
+    batch.push(userEvent);
+    
+    if (batch.length >= BATCH_MAX) {
+      flush();
+    }
+  } catch (error) {
+    console.error('Error recording event:', error);
   }
 }
 
 // Set up click event listeners
 document.addEventListener('click', (e) => {
-  const target = e.target as HTMLElement;
-  // Don't record clicks on the body or document
-  if (target.tagName === 'BODY' || target.tagName === 'HTML') {
-    return;
+  try {
+    // Ensure target is an HTMLElement before proceeding
+    if (!(e.target instanceof HTMLElement)) {
+      console.warn('Click target is not an HTMLElement', e.target);
+      return;
+    }
+    
+    const target = e.target as HTMLElement;
+    // Don't record clicks on the body or document
+    if (!target.tagName || target.tagName === 'BODY' || target.tagName === 'HTML') {
+      return;
+    }
+    recordEvent('click', e);
+  } catch (error) {
+    console.error('Error processing click event:', error);
   }
-  recordEvent('click', e);
 }, true);
 
 // Form interactions
@@ -204,21 +233,31 @@ document.addEventListener('mouseover', (e) => {
   }
   
   mouseTimeout = window.setTimeout(() => {
-    const target = e.target as HTMLElement;
-    // Skip body and document elements
-    if (target.tagName === 'BODY' || target.tagName === 'HTML') {
-      return;
-    }
-    
-    batch.push({
-      type: 'hover',
-      target: getElementDescription(target),
-      t: Date.now(),
-      url: window.location.href
-    });
-    
-    if (batch.length >= BATCH_MAX) {
-      flush();
+    try {
+      // Ensure target is an HTMLElement before proceeding
+      if (!(e.target instanceof HTMLElement)) {
+        console.warn('Mouseover target is not an HTMLElement', e.target);
+        return;
+      }
+      
+      const target = e.target as HTMLElement;
+      // Skip body and document elements
+      if (!target.tagName || target.tagName === 'BODY' || target.tagName === 'HTML') {
+        return;
+      }
+      
+      batch.push({
+        type: 'hover',
+        target: getElementDescription(target),
+        t: Date.now(),
+        url: window.location.href
+      });
+      
+      if (batch.length >= BATCH_MAX) {
+        flush();
+      }
+    } catch (error) {
+      console.error('Error processing mouseover event:', error);
     }
     
     mouseTimeout = null;

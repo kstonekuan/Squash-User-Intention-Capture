@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Model Debug</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      color: #333;
+    }
+    h1 {
+      color: #1a73e8;
+    }
+    .card {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .status {
+      font-weight: bold;
+      font-size: 1.2em;
+    }
+    .available {
+      color: green;
+    }
+    .unavailable {
+      color: red;
+    }
+    button {
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 8px;
+    }
+    button:hover {
+      background-color: #185abc;
+    }
+    pre {
+      background: #f1f3f4;
+      padding: 12px;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>AI Model Debug Panel</h1>
+  
+  <div class="card">
+    <h2>AI Model Availability</h2>
+    <p>Current status: <span id="status" class="status">Checking...</span></p>
+    <button id="checkBtn">Check Again</button>
+  </div>
+  
+  <div class="card">
+    <h2>Chrome API Detection</h2>
+    <p>Is chrome available? <span id="chromeStatus">Checking...</span></p>
+    <p>Is chrome.aiOriginTrial available? <span id="aiTrialStatus">Checking...</span></p>
+    <p>Is chrome.aiOriginTrial.languageModel available? <span id="langModelStatus">Checking...</span></p>
+  </div>
+  
+  <div class="card">
+    <h2>Model Details</h2>
+    <p>Model parameters: <span id="params">Checking...</span></p>
+    <p>Capabilities: <span id="capabilities">Checking...</span></p>
+    <button id="testModelBtn">Test Simple Prompt</button>
+  </div>
+  
+  <div class="card">
+    <h2>Test Results</h2>
+    <pre id="testResults">No tests run yet</pre>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      console.log('Debug panel loaded');
+      
+      // Initial checks
+      checkEnvironment();
+      
+      // Event listeners
+      document.getElementById('checkBtn').addEventListener('click', checkModelAvailability);
+      document.getElementById('testModelBtn').addEventListener('click', testModel);
+      
+      // Check model availability on load
+      checkModelAvailability();
+    });
+    
+    function checkEnvironment() {
+      const chromeStatus = document.getElementById('chromeStatus');
+      const aiTrialStatus = document.getElementById('aiTrialStatus');
+      const langModelStatus = document.getElementById('langModelStatus');
+      
+      // Check if Chrome is available
+      if (typeof chrome !== 'undefined') {
+        chromeStatus.textContent = '✅ Yes';
+      } else {
+        chromeStatus.textContent = '❌ No';
+      }
+      
+      // Check if aiOriginTrial is available
+      if (typeof chrome !== 'undefined' && 'aiOriginTrial' in chrome) {
+        aiTrialStatus.textContent = '✅ Yes';
+      } else {
+        aiTrialStatus.textContent = '❌ No';
+      }
+      
+      // Check if languageModel is available
+      if (typeof chrome !== 'undefined' && 
+          'aiOriginTrial' in chrome && 
+          'languageModel' in chrome.aiOriginTrial) {
+        langModelStatus.textContent = '✅ Yes';
+      } else {
+        langModelStatus.textContent = '❌ No';
+      }
+    }
+    
+    async function checkModelAvailability() {
+      const statusEl = document.getElementById('status');
+      const paramsEl = document.getElementById('params');
+      const capabilitiesEl = document.getElementById('capabilities');
+      
+      statusEl.textContent = 'Checking...';
+      statusEl.className = 'status';
+      
+      try {
+        // Check if the API exists at runtime
+        if (!('aiOriginTrial' in chrome)) {
+          statusEl.textContent = '❌ AI Origin Trial API not available in this browser';
+          statusEl.className = 'status unavailable';
+          return;
+        }
+        
+        // Check actual availability status
+        const available = await chrome.aiOriginTrial.languageModel.availability();
+        if (available === 'available') {
+          statusEl.textContent = '✅ Available';
+          statusEl.className = 'status available';
+        } else {
+          statusEl.textContent = `❌ Not Available (status: ${available})`;
+          statusEl.className = 'status unavailable';
+        }
+        
+        // Try to get parameters
+        try {
+          const params = await chrome.aiOriginTrial.languageModel.params();
+          paramsEl.textContent = JSON.stringify(params, null, 2);
+        } catch (error) {
+          paramsEl.textContent = `Error: ${error.message}`;
+        }
+        
+        // Try to get capabilities
+        try {
+          const capabilities = await chrome.aiOriginTrial.languageModel.capabilities();
+          capabilitiesEl.textContent = JSON.stringify(capabilities, null, 2);
+        } catch (error) {
+          capabilitiesEl.textContent = `Error: ${error.message}`;
+        }
+        
+      } catch (error) {
+        statusEl.textContent = `❌ Error checking availability: ${error.message}`;
+        statusEl.className = 'status unavailable';
+      }
+    }
+    
+    async function testModel() {
+      const resultsEl = document.getElementById('testResults');
+      resultsEl.textContent = 'Running test...';
+      
+      try {
+        // Check if the API exists
+        if (!('aiOriginTrial' in chrome)) {
+          resultsEl.textContent = 'AI Origin Trial API not available in this browser';
+          return;
+        }
+        
+        // Check availability
+        const available = await chrome.aiOriginTrial.languageModel.availability();
+        if (available !== 'available') {
+          resultsEl.textContent = `Test failed: Model not available (status: ${available})`;
+          return;
+        }
+        
+        // Create a session with the language model
+        const session = await chrome.aiOriginTrial.languageModel.create();
+        
+        // Simple prompt
+        const prompt = 'Say hello in 5 words or less.';
+        
+        // Send the prompt to the model
+        const result = await session.prompt(prompt);
+        
+        // Display response
+        resultsEl.textContent = `Prompt: "${prompt}"\n\nResponse: "${result}"`;
+        
+        // Clean up
+        session.destroy();
+        
+      } catch (error) {
+        resultsEl.textContent = `Test failed with error: ${error.message}\n\nStack trace: ${error.stack}`;
+      }
+    }
+  </script>
+</body>
+</html>

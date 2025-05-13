@@ -3,12 +3,15 @@ export type Message =
   | { kind: 'evtBatch', evts: RawEvent[] }
   | { kind: 'nav', url: string }
   | { kind: 'openOverlay', tabId: number }
-  | { kind: 'export' };
+  | { kind: 'export' }
+  | { kind: 'mark', action: 'start' | 'stop' }
+  | { kind: 'analyzeWorkflow' };
 
 // Port message types 
 export type PortMessage = 
   | { init: RawEvent[] }
-  | { delta: RawEvent[] };
+  | { delta: RawEvent[] }
+  | { analysis: WorkflowAnalysis };
 
 // Raw event types
 export type RawEvent =
@@ -91,11 +94,41 @@ export type RawEvent =
       url: string;
       t: number;
       pageUrl: string;
+    }
+  // Workflow marking events (new in v0.5)
+  | {
+      type: 'mark';
+      action: 'start' | 'stop';
+      t: number;
     };
+
+// AI Analysis response (new in v0.5)
+export interface WorkflowAnalysis {
+  summary: string;        // Overall workflow purpose
+  steps: {                // Step-by-step breakdown
+    action: string;       // What the user did
+    intent: string;       // Why they did it
+  }[];
+  suggestions?: string[]; // Optional improvement suggestions
+  debug?: {              // Debug information (new)
+    prompt?: string;      // The prompt sent to the model
+    error?: string;       // Error message, if any
+    rawResponse?: string; // Raw response from the model
+    modelStatus?: string; // Model status
+  };
+}
 
 // DB types
 export interface DBChunk {
   id?: number;
   timestamp: number;
   events: RawEvent[];
+}
+
+// Workflow marks
+export interface WorkflowMarkers {
+  startIndex: number;
+  startTime: number;
+  endIndex?: number;
+  endTime?: number;
 }

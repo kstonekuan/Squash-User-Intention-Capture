@@ -20,8 +20,20 @@
       --hash-color: #16a085;
       --net-color: #c0392b;
       --tab-color: #2c3e50;
+      --mark-color: #e74c3c;
+      --mark-color-rgb: 231, 76, 60;
       --header-bg: #f8f9fa;
       --row-hover: #f5f5f5;
+      --section-bg: #f5f5f5;
+      --primary-btn: #4caf50;
+      --primary-btn-rgb: 76, 175, 80;
+      --primary-btn-hover: #45a049;
+      --secondary-btn: #2196F3;
+      --secondary-btn-rgb: 33, 150, 243;
+      --secondary-btn-hover: #0b7dda;
+      --danger-btn: #f44336;
+      --danger-btn-rgb: 244, 67, 54;
+      --danger-btn-hover: #d32f2f;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -40,8 +52,20 @@
         --hash-color: #1abc9c;
         --net-color: #e74c3c;
         --tab-color: #34495e;
+        --mark-color: #ff5252;
+        --mark-color-rgb: 255, 82, 82;
         --header-bg: #2d2d2d;
         --row-hover: #2a2a2a;
+        --section-bg: #2d2d2d;
+        --primary-btn: #66bb6a;
+        --primary-btn-rgb: 102, 187, 106;
+        --primary-btn-hover: #4caf50;
+        --secondary-btn: #42a5f5;
+        --secondary-btn-rgb: 66, 165, 245;
+        --secondary-btn-hover: #2196F3;
+        --danger-btn: #ef5350;
+        --danger-btn-rgb: 239, 83, 80;
+        --danger-btn-hover: #e53935;
       }
     }
 
@@ -81,6 +105,40 @@
       gap: 8px;
     }
 
+    .content {
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+      overflow: hidden;
+    }
+
+    .tabs {
+      display: flex;
+      background-color: var(--section-bg);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .tab {
+      padding: 6px 12px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+
+    .tab.active {
+      border-bottom-color: var(--secondary-btn);
+      font-weight: 500;
+    }
+
+    .tab-content {
+      display: none;
+      flex-grow: 1;
+      overflow: auto;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
     .btn {
       background: transparent;
       border: 1px solid var(--border-color);
@@ -93,6 +151,43 @@
 
     .btn:hover {
       background-color: var(--row-hover);
+    }
+
+    .btn-primary {
+      background-color: var(--primary-btn);
+      color: white;
+      border-color: var(--primary-btn);
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-btn-hover);
+    }
+
+    .btn-secondary {
+      background-color: var(--secondary-btn);
+      color: white;
+      border-color: var(--secondary-btn);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--secondary-btn-hover);
+    }
+
+    .btn-danger {
+      background-color: var(--danger-btn);
+      color: white;
+      border-color: var(--danger-btn);
+    }
+
+    .btn-danger:hover {
+      background-color: var(--danger-btn-hover);
+    }
+
+    .workflow-actions {
+      display: flex;
+      padding: 8px;
+      border-bottom: 1px solid var(--border-color);
+      gap: 8px;
     }
 
     #log {
@@ -116,6 +211,12 @@
       background-color: var(--row-hover);
     }
 
+    .row.workflow-mark {
+      background-color: rgba(var(--mark-color-rgb, 231, 76, 60), 0.1);
+      border-left: 3px solid var(--mark-color);
+      font-weight: bold;
+    }
+
     .nav { color: var(--nav-color); }
     .dom { color: var(--dom-color); }
     .inp { color: var(--inp-color); }
@@ -127,11 +228,169 @@
     .hash { color: var(--hash-color); }
     .net { color: var(--net-color); }
     .tab { color: var(--tab-color); font-style: italic; }
+    .mark { color: var(--mark-color); font-weight: bold; }
 
     .timestamp {
       color: #888;
       margin-right: 8px;
       font-size: 11px;
+    }
+
+    /* Analysis Tab Styles */
+    #analysisContent {
+      padding: 12px;
+      overflow-y: auto;
+    }
+
+    .analysis-section {
+      margin-bottom: 16px;
+    }
+
+    .analysis-section h2 {
+      font-size: 14px;
+      margin: 0 0 8px 0;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .analysis-section p {
+      margin: 0 0 8px 0;
+      line-height: 1.5;
+    }
+
+    .analysis-step {
+      padding: 8px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      background-color: var(--section-bg);
+      border-left: 3px solid var(--secondary-btn);
+    }
+
+    .analysis-step h3 {
+      font-size: 13px;
+      margin: 0 0 4px 0;
+    }
+
+    .analysis-step p {
+      margin: 0;
+      color: var(--text-color);
+      opacity: 0.8;
+    }
+
+    .analysis-suggestions {
+      margin-top: 16px;
+      padding: 8px;
+      background-color: var(--section-bg);
+      border-radius: 4px;
+    }
+
+    .analysis-suggestions ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .prompt-editor {
+      margin-top: 16px;
+    }
+
+    .prompt-editor textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      resize: vertical;
+      margin-bottom: 8px;
+      font-family: inherit;
+      font-size: inherit;
+    }
+    
+    /* Debug tab styles */
+    .debug-container {
+      padding: 16px;
+      overflow-y: auto;
+      height: 100%;
+    }
+    
+    .card {
+      background: var(--section-bg);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .card h2 {
+      font-size: 14px;
+      margin: 0 0 12px 0;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .status {
+      font-weight: bold;
+      font-size: 1.2em;
+    }
+    
+    .available {
+      color: var(--primary-btn);
+    }
+    
+    .unavailable {
+      color: var(--danger-btn);
+    }
+    
+    pre {
+      background: var(--bg-color);
+      padding: 12px;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 12px;
+      border: 1px solid var(--border-color);
+    }
+    
+    /* Analysis Debug Styles */
+    .analysis-debug {
+      margin-top: 24px;
+      border-top: 1px dashed var(--border-color);
+      padding-top: 16px;
+    }
+    
+    .debug-toggle {
+      margin-bottom: 12px;
+    }
+    
+    .debug-info-section {
+      margin-bottom: 16px;
+    }
+    
+    .debug-info-section h3 {
+      font-size: 13px;
+      margin: 0 0 8px 0;
+      color: var(--text-color);
+      opacity: 0.8;
+    }
+    
+    .debug-code {
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 11px;
+      background-color: var(--section-bg);
+      color: var(--text-color);
+    }
+    
+    .error-highlight {
+      background-color: rgba(var(--danger-btn-rgb, 244, 67, 54), 0.1);
+      border-left: 3px solid var(--danger-btn);
+    }
+    
+    .success-highlight {
+      background-color: rgba(var(--primary-btn-rgb, 76, 175, 80), 0.1);
+      border-left: 3px solid var(--primary-btn);
     }
   </style>
 </head>
@@ -144,7 +403,107 @@
         <button id="clearBtn" class="btn">Clear</button>
       </div>
     </div>
-    <ul id="log"></ul>
+    
+    <div class="workflow-actions">
+      <button id="startMarkBtn" class="btn btn-primary">Start Mark</button>
+      <button id="stopMarkBtn" class="btn btn-danger" disabled>Stop Mark</button>
+    </div>
+    
+    <div class="content">
+      <div class="tabs">
+        <div id="eventsTab" class="tab active">Events</div>
+        <div id="analysisTab" class="tab">Analysis</div>
+        <div id="debugTab" class="tab">Debug</div>
+      </div>
+      
+      <div id="eventsContent" class="tab-content active">
+        <ul id="log"></ul>
+      </div>
+      
+      <div id="debugContent" class="tab-content">
+        <div class="debug-container">
+          <div class="card">
+            <h2>AI Model Availability</h2>
+            <p>Current status: <span id="status" class="status">Checking...</span></p>
+            <button id="checkBtn" class="btn btn-secondary">Check Again</button>
+          </div>
+          
+          <div class="card">
+            <h2>Chrome API Detection</h2>
+            <p>Is chrome available? <span id="chromeStatus">Checking...</span></p>
+            <p>Is chrome.aiOriginTrial available? <span id="aiTrialStatus">Checking...</span></p>
+            <p>Is chrome.aiOriginTrial.languageModel available? <span id="langModelStatus">Checking...</span></p>
+          </div>
+          
+          <div class="card">
+            <h2>Model Details</h2>
+            <p>Model parameters: <span id="params">Checking...</span></p>
+            <p>Capabilities: <span id="capabilities">Checking...</span></p>
+            <button id="testModelBtn" class="btn btn-secondary">Test Simple Prompt</button>
+          </div>
+          
+          <div class="card">
+            <h2>Test Results</h2>
+            <pre id="testResults">No tests run yet</pre>
+            <button id="simpleDiagnosticBtn" class="btn btn-primary">Run Simple Diagnostic Test</button>
+          </div>
+        </div>
+      </div>
+      
+      <div id="analysisContent" class="tab-content">
+        <div class="analysis-placeholder">
+          <p>Mark a workflow with Start/Stop buttons to see AI analysis here.</p>
+        </div>
+        
+        <div class="analysis-results" style="display: none;">
+          <div class="analysis-section">
+            <h2>Workflow Summary</h2>
+            <p id="workflowSummary"></p>
+          </div>
+          
+          <div class="analysis-section">
+            <h2>Step-by-Step Analysis</h2>
+            <div id="workflowSteps"></div>
+          </div>
+          
+          <div class="analysis-section analysis-suggestions">
+            <h2>Suggestions</h2>
+            <ul id="workflowSuggestions"></ul>
+          </div>
+          
+          <div class="analysis-section analysis-debug">
+            <h2>Debug Information</h2>
+            <div class="debug-toggle">
+              <button id="toggleDebugBtn" class="btn btn-secondary">Show Debug Info</button>
+            </div>
+            <div id="analysisDebugInfo" style="display: none;">
+              <div class="debug-info-section">
+                <h3>Error Details</h3>
+                <pre id="errorDetails" class="debug-code">No errors</pre>
+              </div>
+              <div class="debug-info-section">
+                <h3>Model Status</h3>
+                <pre id="modelStatus" class="debug-code">Unknown</pre>
+              </div>
+              <div class="debug-info-section">
+                <h3>Prompt Sent to Model</h3>
+                <pre id="promptText" class="debug-code">No prompt available</pre>
+              </div>
+              <div class="debug-info-section">
+                <h3>Raw Model Response</h3>
+                <pre id="rawResponse" class="debug-code">No response available</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="prompt-editor">
+          <h2>Customize Analysis Prompt</h2>
+          <textarea id="customPrompt" placeholder="Enter a custom prompt to analyze the workflow differently"></textarea>
+          <button id="reanalyzeBtn" class="btn btn-secondary">Re-analyze with Custom Prompt</button>
+        </div>
+      </div>
+    </div>
   </div>
   <script type="module" src="panel.ts"></script>
 </body>
