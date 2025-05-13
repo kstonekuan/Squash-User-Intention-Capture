@@ -85,7 +85,7 @@ function recordEvent(type: string, event: Event) {
     let action = type;
     
     // Extract additional info based on event type
-    if (type === 'input' || type === 'change') {
+    if (type === 'change' || type === 'input-submit') {
       if (target instanceof HTMLInputElement || 
           target instanceof HTMLSelectElement || 
           target instanceof HTMLTextAreaElement) {
@@ -94,6 +94,11 @@ function recordEvent(type: string, event: Event) {
           value = '••••••••';
         } else {
           value = target.value;
+        }
+        
+        // For input-submit, we want to indicate it was captured at submission
+        if (type === 'input-submit') {
+          action = 'input-at-submit';
         }
       }
     } else if (type === 'submit') {
@@ -145,12 +150,44 @@ document.addEventListener('click', (e) => {
 
 // Form interactions
 document.addEventListener('submit', (e) => {
-  recordEvent('submit', e);
+  try {
+    if (!(e.target instanceof HTMLFormElement)) {
+      console.warn('Submit target is not a form', e.target);
+      return;
+    }
+    
+    const form = e.target as HTMLFormElement;
+    const formElements = Array.from(form.elements);
+    
+    // Record the form submission
+    recordEvent('submit', e);
+    
+    // Record the values of form inputs at submission time
+    formElements.forEach(element => {
+      if (element instanceof HTMLInputElement || 
+          element instanceof HTMLSelectElement || 
+          element instanceof HTMLTextAreaElement) {
+        
+        // Skip buttons and hidden fields
+        if (element instanceof HTMLInputElement && 
+            (element.type === 'button' || element.type === 'submit' || element.type === 'hidden')) {
+          return;
+        }
+        
+        // Create a synthetic event with the target as the input element
+        const syntheticEvent = new Event('change');
+        Object.defineProperty(syntheticEvent, 'target', { value: element });
+        
+        // Record the input value at form submission time
+        recordEvent('input-submit', syntheticEvent);
+      }
+    });
+  } catch (error) {
+    console.error('Error recording form submission:', error);
+  }
 }, true);
 
-document.addEventListener('input', (e) => {
-  recordEvent('input', e);
-}, true);
+// Not recording individual input events anymore - only on submit
 
 document.addEventListener('change', (e) => {
   recordEvent('change', e);
@@ -193,6 +230,36 @@ document.addEventListener('visibilitychange', () => {
 
 // Keypress events (only record which keys were pressed, not the specific characters)
 document.addEventListener('keydown', (e) => {
+  // Handle Enter key press on input fields specially
+  if (e.key === 'Enter' && 
+      (e.target instanceof HTMLInputElement || 
+       e.target instanceof HTMLTextAreaElement)) {
+    
+    // Don't capture Enter on multiline textareas unless Ctrl/Cmd is pressed (form submission)
+    if (e.target instanceof HTMLTextAreaElement && 
+        !e.ctrlKey && !e.metaKey && e.target.value.includes('\n')) {
+      return;
+    }
+    
+    // If it's a single line input or textarea with Ctrl+Enter, capture the value
+    const target = e.target as HTMLInputElement | HTMLTextAreaElement;
+    const value = target.type === 'password' ? '••••••••' : target.value;
+    
+    batch.push({
+      type: 'user',
+      target: getElementDescription(target),
+      action: 'input-enter',
+      value,
+      t: Date.now(),
+      url: window.location.href
+    });
+    
+    if (batch.length >= BATCH_MAX) {
+      flush();
+    }
+    return;
+  }
+  
   // Skip if the target is an input field - we'll capture those via input events
   if (e.target instanceof HTMLInputElement || 
       e.target instanceof HTMLTextAreaElement ||
@@ -225,30 +292,38 @@ document.addEventListener('keydown', (e) => {
   }
 }, true);
 
-// Mouse events for hover state tracking (debounced)
-let mouseTimeout: number | null = null;
-document.addEventListener('mouseover', (e) => {
-  if (mouseTimeout) {
-    window.clearTimeout(mouseTimeout);
+// Text selection/highlighting capture
+let selectionTimeout: number | null = null;
+document.addEventListener('selectionchange', () => {
+  // Debounce to avoid capturing too many events during selection
+  if (selectionTimeout) {
+    window.clearTimeout(selectionTimeout);
   }
   
-  mouseTimeout = window.setTimeout(() => {
+  selectionTimeout = window.setTimeout(() => {
     try {
-      // Ensure target is an HTMLElement before proceeding
-      if (!(e.target instanceof HTMLElement)) {
-        console.warn('Mouseover target is not an HTMLElement', e.target);
-        return;
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+        return; // Skip if no selection or empty selection
       }
       
-      const target = e.target as HTMLElement;
-      // Skip body and document elements
-      if (!target.tagName || target.tagName === 'BODY' || target.tagName === 'HTML') {
-        return;
+      const selectedText = selection.toString().trim();
+      // Limit length to avoid extremely long selections
+      const trimmedText = selectedText.length > 500 
+        ? selectedText.substring(0, 500) + '...' 
+        : selectedText;
+      
+      // Get parent element of selection for context
+      let targetElement: HTMLElement | null = null;
+      if (selection.anchorNode) {
+        targetElement = selection.anchorNode.parentElement;
       }
       
       batch.push({
-        type: 'hover',
-        target: getElementDescription(target),
+        type: 'user',
+        target: targetElement ? getElementDescription(targetElement) : 'text',
+        action: 'select',
+        value: trimmedText,
         t: Date.now(),
         url: window.location.href
       });
@@ -257,11 +332,11 @@ document.addEventListener('mouseover', (e) => {
         flush();
       }
     } catch (error) {
-      console.error('Error processing mouseover event:', error);
+      console.error('Error processing text selection:', error);
     }
     
-    mouseTimeout = null;
-  }, 300);  // Debounce to only capture significant hovers
+    selectionTimeout = null;
+  }, 500); // Wait for selection to complete before capturing
 }, true);
 
 // Record URL hash changes
@@ -279,32 +354,7 @@ window.addEventListener('hashchange', (e) => {
   }
 });
 
-// Record page load events
-window.addEventListener('load', () => {
-  batch.push({
-    type: 'page',
-    action: 'load',
-    t: Date.now(),
-    url: window.location.href
-  });
-  
-  if (batch.length >= BATCH_MAX) {
-    flush();
-  }
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-  batch.push({
-    type: 'page',
-    action: 'DOMContentLoaded',
-    t: Date.now(),
-    url: window.location.href
-  });
-  
-  if (batch.length >= BATCH_MAX) {
-    flush();
-  }
-});
+// Page load and DOMContentLoaded event listeners removed as requested
 
 // Observe AJAX Requests using XHR
 const originalXHROpen = XMLHttpRequest.prototype.open;
