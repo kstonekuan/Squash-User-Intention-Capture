@@ -262,9 +262,9 @@ function createPrompt(events: RawEvent[], customPrompt?: string): string {
   return `
 You are an expert in analyzing user workflows in web applications. I'll provide you with a sequence of user interactions, and I need you to:
 
-1. Identify the overall goal/purpose of this workflow
+1. Identify the overall goal/purpose of this workflow, so that a browser agent can use it replicate the user's actions.
 2. For each significant action, explain what the user was trying to accomplish
-3. Suggest any potential optimizations or shortcuts the user could have used
+3. Suggest any potential optimizations or shortcuts a browser agent could use to achieve the same result more efficiently.
 
 Your analysis should be structured as follows:
 {
