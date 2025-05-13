@@ -74,7 +74,6 @@
     <h2>Model Details</h2>
     <p>Model parameters: <span id="params">Checking...</span></p>
     <p>Capabilities: <span id="capabilities">Checking...</span></p>
-    <button id="testModelBtn">Test Simple Prompt</button>
   </div>
   
   <div class="card">
@@ -91,7 +90,6 @@
       
       // Event listeners
       document.getElementById('checkBtn').addEventListener('click', checkModelAvailability);
-      document.getElementById('testModelBtn').addEventListener('click', testModel);
       
       // Check model availability on load
       checkModelAvailability();

@@ -37,7 +37,6 @@ const aiTrialStatusEl = document.getElementById('aiTrialStatus') as HTMLSpanElem
 const langModelStatusEl = document.getElementById('langModelStatus') as HTMLSpanElement;
 const paramsEl = document.getElementById('params') as HTMLSpanElement;
 const capabilitiesEl = document.getElementById('capabilities') as HTMLSpanElement;
-const testModelBtn = document.getElementById('testModelBtn') as HTMLButtonElement;
 const testResultsEl = document.getElementById('testResults') as HTMLPreElement;
 const simpleDiagnosticBtn = document.getElementById('simpleDiagnosticBtn') as HTMLButtonElement;
 
@@ -464,52 +463,8 @@ async function checkModelAvailability() {
   }
 }
 
-// Test model with a simple prompt
-async function testModel() {
-  testResultsEl.textContent = 'Running test...';
-  
-  try {
-    // Check if the API exists
-    if (!('aiOriginTrial' in chrome)) {
-      testResultsEl.textContent = 'AI Origin Trial API not available in this browser';
-      return;
-    }
-    
-    if (!chrome.aiOriginTrial || !chrome.aiOriginTrial.languageModel) {
-      testResultsEl.textContent = 'Language Model API not available';
-      return;
-    }
-    
-    // Check availability
-    const available = await chrome.aiOriginTrial.languageModel.availability();
-    if (available !== 'available') {
-      testResultsEl.textContent = `Test failed: Model not available (status: ${available})`;
-      return;
-    }
-    
-    // Create a session with the language model
-    const session = await chrome.aiOriginTrial.languageModel.create();
-    
-    // Simple prompt
-    const prompt = 'Say hello in 5 words or less.';
-    
-    // Send the prompt to the model
-    const result = await session.prompt(prompt);
-    
-    // Display response
-    testResultsEl.textContent = `Prompt: "${prompt}"\n\nResponse: "${result.response}"`;
-    
-    // Clean up
-    session.destroy();
-    
-  } catch (error) {
-    testResultsEl.textContent = `Test failed with error: ${error.message || 'Unknown error'}\n\nStack trace: ${error.stack || 'No stack trace available'}`;
-  }
-}
-
 // Add event listeners for debug tab
 checkBtn.addEventListener('click', checkModelAvailability);
-testModelBtn.addEventListener('click', testModel);
 simpleDiagnosticBtn.addEventListener('click', runDiagnosticTest);
 
 // Simple diagnostic test function
