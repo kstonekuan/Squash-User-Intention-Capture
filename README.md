@@ -25,12 +25,6 @@ npm install
 # or
 pnpm install
 
-# Start dev server
-npm run dev
-# or
-pnpm dev
-```
-
 ### Building for Production
 
 ```bash
