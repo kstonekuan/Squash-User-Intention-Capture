@@ -482,23 +482,23 @@ simpleDiagnosticBtn.addEventListener('click', runDiagnosticTest);
 // Simple diagnostic test function
 async function runDiagnosticTest() {
   testResultsEl.textContent = 'Running diagnostic test...';
-  
-  try {
-    const result = await testAIModel();
-    testResultsEl.textContent = JSON.stringify(result, null, 2);
-    
-    if (result.success) {
-      testResultsEl.classList.add('success-highlight');
-      testResultsEl.classList.remove('error-highlight');
-    } else {
+
+    try {
+      const result = await testAIModel();
+      testResultsEl.textContent = JSON.stringify(result, null, 2);
+      
+      if (result.success) {
+        testResultsEl.classList.add('success-highlight');
+        testResultsEl.classList.remove('error-highlight');
+      } else {
+        testResultsEl.classList.add('error-highlight');
+        testResultsEl.classList.remove('success-highlight');
+      }
+    } catch (error) {
+      testResultsEl.textContent = `Error running diagnostic test: ${error instanceof Error ? error.message : 'Unknown error'}`;
       testResultsEl.classList.add('error-highlight');
       testResultsEl.classList.remove('success-highlight');
     }
-  } catch (error) {
-    testResultsEl.textContent = `Error running diagnostic test: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    testResultsEl.classList.add('error-highlight');
-    testResultsEl.classList.remove('success-highlight');
-  }
 }
 
 // Add event listener for toggleDebugBtn

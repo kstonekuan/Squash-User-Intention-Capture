@@ -8,21 +8,25 @@ declare global {
   }
   
   namespace chrome {
-    namespace aiOriginTrial {
+    namespace aiOriginTrial {      
+      
       interface LanguageModelCapabilities {
         supportedModels: string[];
       }
-      
       interface LanguageModelSession {
         prompt(prompt: string): Promise<string>;
         destroy(): void;
       }
       
-      namespace languageModel {
+      namespace languageModel {        
         function capabilities(): Promise<LanguageModelCapabilities>;
-        function create(options?: { topK?: number; temperature?: number }): Promise<LanguageModelSession>;
+        function create(options?: { 
+          topK?: number; 
+          temperature?: number; 
+          monitor?: (m: { addEventListener(event: 'downloadprogress', listener: (e: { loaded: number; total: number }) => void): void }) => void;
+        }): Promise<LanguageModelSession>;
         function params(): Promise<{ model: string; topK: number; temperature: number }>;
-        function availability(): Promise<'available' | 'unavailable'>;
+        function availability(): Promise<'available' | 'unavailable' | 'downloadable'>;
       }
     }
   }
@@ -110,12 +114,6 @@ export async function testAIModel(): Promise<{
   try {
     console.log('Running AI model diagnostic test...');
     
-    // Check if Chrome exists
-    if (typeof chrome === 'undefined') {
-      diagnosticResult.error = 'Chrome API is not available';
-      return diagnosticResult;
-    }
-    
     // Check API existence
     if (!('aiOriginTrial' in chrome)) {
       diagnosticResult.error = 'AI Origin Trial API is not available in this browser';
@@ -127,12 +125,13 @@ export async function testAIModel(): Promise<{
       return diagnosticResult;
     }
     
+    let available
     // Check availability
     try {
-      const available = await chrome.aiOriginTrial.languageModel.availability();
+      available = await chrome.aiOriginTrial.languageModel.availability();
       diagnosticResult.modelStatus = available;
       
-      if (available !== 'available') {
+      if (available === 'unavailable') {
         diagnosticResult.error = `Model not available (status: ${available})`;
         return diagnosticResult;
       }
@@ -151,11 +150,13 @@ export async function testAIModel(): Promise<{
       const params = await chrome.aiOriginTrial.languageModel.params();
       console.log('Model params:', params);
       
+      if (available === 'downloadable') {
+        console.error('Model will take time to download');
+      }
+      
       // Create with explicit parameters for more reliability
-      session = await chrome.aiOriginTrial.languageModel.create({
-        temperature: 1,  // Very low temperature for deterministic output
-        topK: 5           // Limited to top 10 tokens
-      });
+      session = await chrome.aiOriginTrial.languageModel.create();
+
       console.log('Session created successfully');
     } catch (sessionError) {
       diagnosticResult.error = `Error creating model session: ${sessionError instanceof Error ? 
