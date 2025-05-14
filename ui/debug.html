@@ -171,65 +171,6 @@
         statusEl.className = 'status unavailable';
       }
     }
-    
-    async function testModel() {
-      const resultsEl = document.getElementById('testResults');
-      resultsEl.textContent = 'Running test...';
-      
-      try {
-        // Check if the API exists
-        if (!('aiOriginTrial' in chrome)) {
-          resultsEl.textContent = 'AI Origin Trial API not available in this browser';
-          return;
-        }
-        
-        // Check availability
-        const available = await chrome.aiOriginTrial.languageModel.capabilities();
-        
-        switch (available) {
-          case 'no':
-            resultsEl.textContent = 'Prompt API is supported, but cannot be used at the moment';
-            return;
-          case 'after-download':
-            resultsEl.textContent = 'Prompt API is supported, but requires a download';
-            break;
-          case 'readily':
-            resultsEl.textContent = `Prompt API is supported and ready to use`;
-            break;
-          default:
-            resultsEl.textContent = `Prompt API is supported, but status is unknown: ${available}`;
-            return;
-        }
-
-        if ('after-download' === available) {
-          const session = await chrome.aiOriginTrial.languageModel.create({
-            monitor(m){
-              m.addEventListener('downloadprogress', (e) => {
-                resultsEl.textContent = `Downloaded ${e.loaded} of ${e.total} bytes`;
-              });
-            },
-          });
-        }
-        
-        // Create a session with the language model
-        const session = await chrome.aiOriginTrial.languageModel.create();
-        
-        // Simple prompt
-        const prompt = 'Say hello in 5 words or less.';
-        
-        // Send the prompt to the model
-        const result = await session.prompt(prompt);
-        
-        // Display response
-        resultsEl.textContent = `Prompt: "${prompt}"\n\nResponse: "${result}"`;
-        
-        // Clean up
-        session.destroy();
-        
-      } catch (error) {
-        resultsEl.textContent = `Test failed with error: ${error.message}\n\nStack trace: ${error.stack}`;
-      }
-    }
   </script>
 </body>
 </html>
