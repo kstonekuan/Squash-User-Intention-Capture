@@ -184,10 +184,31 @@
         }
         
         // Check availability
-        const available = await chrome.aiOriginTrial.languageModel.availability();
-        if (available !== 'available') {
-          resultsEl.textContent = `Test failed: Model not available (status: ${available})`;
-          return;
+        const available = await chrome.aiOriginTrial.languageModel.capabilities();
+        
+        switch (available) {
+          case 'no':
+            resultsEl.textContent = 'Prompt API is supported, but cannot be used at the moment';
+            return;
+          case 'after-download':
+            resultsEl.textContent = 'Prompt API is supported, but requires a download';
+            break;
+          case 'readily':
+            resultsEl.textContent = `Prompt API is supported and ready to use`;
+            break;
+          default:
+            resultsEl.textContent = `Prompt API is supported, but status is unknown: ${available}`;
+            return;
+        }
+
+        if ('after-download' === available) {
+          const session = await chrome.aiOriginTrial.languageModel.create({
+            monitor(m){
+              m.addEventListener('downloadprogress', (e) => {
+                resultsEl.textContent = `Downloaded ${e.loaded} of ${e.total} bytes`;
+              });
+            },
+          });
         }
         
         // Create a session with the language model
