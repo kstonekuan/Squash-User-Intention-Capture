@@ -350,7 +350,7 @@ document.addEventListener(
         const selectedText = selection.toString().trim();
         // Limit length to avoid extremely long selections
         const trimmedText =
-          selectedText.length > 500 ? selectedText.substring(0, 500) + '...' : selectedText;
+          selectedText.length > 500 ? `${selectedText.substring(0, 500)}...` : selectedText;
 
         // Get parent element of selection for context
         let targetElement: HTMLElement | null = null;

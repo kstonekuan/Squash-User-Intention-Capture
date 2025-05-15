@@ -1,5 +1,5 @@
-import type { PortMessage, RawEvent, WorkflowAnalysis } from '../src/types';
 import { testAIModel } from '../src/ai';
+import type { PortMessage, RawEvent, WorkflowAnalysis } from '../src/types';
 
 // Elements
 const log = document.getElementById('log') as HTMLUListElement;
@@ -43,7 +43,7 @@ const simpleDiagnosticBtn = document.getElementById('simpleDiagnosticBtn') as HT
 const port = chrome.runtime.connect({ name: 'log' });
 
 // Recording state
-let isRecording = false;
+let _isRecording = false;
 
 // Auto-scroll behavior
 let follow = true;
@@ -56,11 +56,11 @@ port.onMessage.addListener((message: PortMessage) => {
   if ('init' in message && message.init) {
     message.init.forEach(add);
   }
-  
+
   if ('delta' in message && message.delta) {
     message.delta.forEach(add);
   }
-  
+
   if ('analysis' in message && message.analysis) {
     hideAnalysisLoading();
     displayAnalysis(message.analysis);
@@ -71,28 +71,28 @@ port.onMessage.addListener((message: PortMessage) => {
 function add(event: RawEvent): void {
   const item = document.createElement('li');
   item.className = `row ${getEventClass(event)}`;
-  
+
   // Special styling for mark events
   if (event.type === 'mark') {
     item.classList.add('workflow-mark');
   }
-  
+
   const timestamp = document.createElement('span');
   timestamp.className = 'timestamp';
   timestamp.textContent = formatTime(event.t || Date.now());
-  
+
   const content = document.createElement('span');
   content.textContent = format(event);
-  
+
   item.appendChild(timestamp);
   item.appendChild(content);
   log.appendChild(item);
-  
+
   // Auto-scroll
   if (follow) {
     log.scrollTop = log.scrollHeight;
   }
-  
+
   // Limit DOM elements to prevent browser slowdown
   const MAX_VISIBLE_ELEMENTS = 500;
   while (log.children.length > MAX_VISIBLE_ELEMENTS) {
@@ -110,27 +110,27 @@ function format(event: RawEvent): string {
     }
     return text;
   }
-  
+
   // Navigation events
   if (event.type === 'nav') {
     return `→ NAV ${event.url}`;
   }
-  
+
   // Tab events
   if (event.type === 'tab') {
     return `TAB ${event.action}`;
   }
-  
+
   // Page lifecycle events
   if (event.type === 'page') {
     return `PAGE ${event.action} ${event.url}`;
   }
-  
+
   // Visibility state changes
   if (event.type === 'visibility') {
     return `VIS ${event.action}`;
   }
-  
+
   // Keyboard events
   if (event.type === 'key') {
     const modifiers = [];
@@ -138,24 +138,22 @@ function format(event: RawEvent): string {
     if (event.modifiers.alt) modifiers.push('Alt');
     if (event.modifiers.shift) modifiers.push('Shift');
     if (event.modifiers.meta) modifiers.push('Meta');
-    
-    const keyCombo = modifiers.length 
-      ? `${modifiers.join('+')}+${event.key}` 
-      : event.key;
-      
+
+    const keyCombo = modifiers.length ? `${modifiers.join('+')}+${event.key}` : event.key;
+
     return `KEY ${keyCombo}`;
   }
-  
+
   // Mouse hover events
   if (event.type === 'hover') {
     return `HOVER ${event.target}`;
   }
-  
+
   // URL hash changes
   if (event.type === 'hashchange') {
     return `HASH ${new URL(event.to).hash}`;
   }
-  
+
   // XHR requests
   if (event.type === 'xhr') {
     // Get just the path part of the URL
@@ -163,12 +161,12 @@ function format(event: RawEvent): string {
     try {
       const url = new URL(event.url, event.pageUrl);
       urlDisplay = url.pathname + url.search;
-    } catch (e) {
+    } catch (_e) {
       // Use the original if parsing fails
     }
     return `XHR ${event.method} ${urlDisplay}`;
   }
-  
+
   // Fetch API requests
   if (event.type === 'fetch') {
     // Get just the path part of the URL
@@ -176,7 +174,7 @@ function format(event: RawEvent): string {
     try {
       const url = new URL(event.url, event.pageUrl);
       urlDisplay = url.pathname + url.search;
-    } catch (e) {
+    } catch (_e) {
       // Use the original if parsing fails
     }
     return `FETCH ${event.method} ${urlDisplay}`;
@@ -223,7 +221,12 @@ function getEventClass(event: RawEvent): string {
 // Format timestamp
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp);
-  return date.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return date.toLocaleTimeString([], {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }
 
 // Show analysis loading indicator
@@ -231,7 +234,7 @@ function showAnalysisLoading(): void {
   // Hide placeholder and results
   analysisPlaceholder.style.display = 'none';
   analysisResults.style.display = 'none';
-  
+
   // Show loading indicator
   analysisLoading.style.display = 'flex';
 }
@@ -246,32 +249,32 @@ function hideAnalysisLoading(): void {
 function displayAnalysis(analysis: WorkflowAnalysis): void {
   // Switch to the analysis tab
   setActiveTab('analysis');
-  
+
   // Hide placeholder and loading, show results
   analysisPlaceholder.style.display = 'none';
   analysisLoading.style.display = 'none';
   analysisResults.style.display = 'block';
-  
+
   // Update summary
   workflowSummary.textContent = analysis.summary;
-  
+
   // Update steps
   workflowSteps.innerHTML = '';
   analysis.steps.forEach(step => {
     const stepEl = document.createElement('div');
     stepEl.className = 'analysis-step';
-    
+
     const actionEl = document.createElement('h3');
     actionEl.textContent = step.action;
-    
+
     const intentEl = document.createElement('p');
     intentEl.textContent = step.intent;
-    
+
     stepEl.appendChild(actionEl);
     stepEl.appendChild(intentEl);
     workflowSteps.appendChild(stepEl);
   });
-  
+
   // Update suggestions
   workflowSuggestions.innerHTML = '';
   if (analysis.suggestions && analysis.suggestions.length > 0) {
@@ -285,7 +288,7 @@ function displayAnalysis(analysis: WorkflowAnalysis): void {
     li.textContent = 'No suggestions available';
     workflowSuggestions.appendChild(li);
   }
-  
+
   // Update debug information if available
   if (analysis.debug) {
     // Show debug elements
@@ -293,7 +296,7 @@ function displayAnalysis(analysis: WorkflowAnalysis): void {
     modelStatusEl.textContent = analysis.debug.modelStatus || 'Unknown';
     promptText.textContent = analysis.debug.prompt || 'No prompt available';
     rawResponse.textContent = analysis.debug.rawResponse || 'No response available';
-    
+
     // Highlight if there's an error
     if (analysis.debug.error) {
       errorDetails.classList.add('error-highlight');
@@ -321,12 +324,12 @@ function setActiveTab(tabId: 'events' | 'analysis' | 'debug'): void {
   eventsTab.classList.toggle('active', tabId === 'events');
   analysisTab.classList.toggle('active', tabId === 'analysis');
   debugTab.classList.toggle('active', tabId === 'debug');
-  
+
   // Update content visibility
   eventsContent.classList.toggle('active', tabId === 'events');
   analysisContent.classList.toggle('active', tabId === 'analysis');
   debugContent.classList.toggle('active', tabId === 'debug');
-  
+
   // Run initial checks if debug tab is activated
   if (tabId === 'debug') {
     checkEnvironment();
@@ -336,23 +339,23 @@ function setActiveTab(tabId: 'events' | 'analysis' | 'debug'): void {
 
 // Start recording workflow
 function startRecording(): void {
-  isRecording = true;
+  _isRecording = true;
   startMarkBtn.disabled = true;
   stopMarkBtn.disabled = false;
-  
+
   chrome.runtime.sendMessage({ kind: 'mark', action: 'start' });
 }
 
 // Stop recording workflow
 function stopRecording(): void {
-  isRecording = false;
+  _isRecording = false;
   startMarkBtn.disabled = false;
   stopMarkBtn.disabled = true;
-  
+
   // Switch to analysis tab and show loading indicator
   setActiveTab('analysis');
   showAnalysisLoading();
-  
+
   // Send stop message to service worker
   chrome.runtime.sendMessage({ kind: 'mark', action: 'stop' });
 }
@@ -370,7 +373,7 @@ exportBtn.addEventListener('click', () => {
 clearBtn.addEventListener('click', () => {
   // Clear the UI
   log.innerHTML = '';
-  
+
   // Reset analysis
   analysisPlaceholder.style.display = 'block';
   analysisResults.style.display = 'none';
@@ -387,7 +390,6 @@ eventsTab.addEventListener('click', () => setActiveTab('events'));
 analysisTab.addEventListener('click', () => setActiveTab('analysis'));
 debugTab.addEventListener('click', () => setActiveTab('debug'));
 
-
 // Debug tab functionality
 // Check environment
 function checkEnvironment() {
@@ -397,19 +399,21 @@ function checkEnvironment() {
   } else {
     chromeStatusEl.textContent = '❌ No';
   }
-  
+
   // Check if aiOriginTrial is available
   if (typeof chrome !== 'undefined' && 'aiOriginTrial' in chrome) {
     aiTrialStatusEl.textContent = '✅ Yes';
   } else {
     aiTrialStatusEl.textContent = '❌ No';
   }
-  
+
   // Check if languageModel is available
-  if (typeof chrome !== 'undefined' && 
-      'aiOriginTrial' in chrome && 
-      chrome.aiOriginTrial && 
-      'languageModel' in chrome.aiOriginTrial) {
+  if (
+    typeof chrome !== 'undefined' &&
+    'aiOriginTrial' in chrome &&
+    chrome.aiOriginTrial &&
+    'languageModel' in chrome.aiOriginTrial
+  ) {
     langModelStatusEl.textContent = '✅ Yes';
   } else {
     langModelStatusEl.textContent = '❌ No';
@@ -420,7 +424,7 @@ function checkEnvironment() {
 async function checkModelAvailability() {
   statusEl.textContent = 'Checking...';
   statusEl.className = 'status';
-  
+
   try {
     // Check if the API exists at runtime
     if (!('aiOriginTrial' in chrome)) {
@@ -428,13 +432,13 @@ async function checkModelAvailability() {
       statusEl.className = 'status unavailable';
       return;
     }
-    
+
     if (!chrome.aiOriginTrial || !chrome.aiOriginTrial.languageModel) {
       statusEl.textContent = '❌ Language Model API not available';
       statusEl.className = 'status unavailable';
       return;
     }
-    
+
     // Check actual availability status
     const available = await chrome.aiOriginTrial.languageModel.availability();
     if (available === 'available') {
@@ -444,7 +448,7 @@ async function checkModelAvailability() {
       statusEl.textContent = `❌ Not Available (status: ${available})`;
       statusEl.className = 'status unavailable';
     }
-    
+
     // Try to get parameters
     try {
       if (chrome.aiOriginTrial.languageModel.params) {
@@ -456,7 +460,7 @@ async function checkModelAvailability() {
     } catch (error) {
       paramsEl.textContent = `Error: ${error.message || 'Unknown error'}`;
     }
-    
+
     // Try to get capabilities
     try {
       if (chrome.aiOriginTrial.languageModel.capabilities) {
@@ -468,7 +472,6 @@ async function checkModelAvailability() {
     } catch (error) {
       capabilitiesEl.textContent = `Error: ${error.message || 'Unknown error'}`;
     }
-    
   } catch (error) {
     statusEl.textContent = `❌ Error checking availability: ${error.message || 'Unknown error'}`;
     statusEl.className = 'status unavailable';
@@ -483,22 +486,22 @@ simpleDiagnosticBtn.addEventListener('click', runDiagnosticTest);
 async function runDiagnosticTest() {
   testResultsEl.textContent = 'Running diagnostic test...';
 
-    try {
-      const result = await testAIModel();
-      testResultsEl.textContent = JSON.stringify(result, null, 2);
-      
-      if (result.success) {
-        testResultsEl.classList.add('success-highlight');
-        testResultsEl.classList.remove('error-highlight');
-      } else {
-        testResultsEl.classList.add('error-highlight');
-        testResultsEl.classList.remove('success-highlight');
-      }
-    } catch (error) {
-      testResultsEl.textContent = `Error running diagnostic test: ${error instanceof Error ? error.message : 'Unknown error'}`;
+  try {
+    const result = await testAIModel();
+    testResultsEl.textContent = JSON.stringify(result, null, 2);
+
+    if (result.success) {
+      testResultsEl.classList.add('success-highlight');
+      testResultsEl.classList.remove('error-highlight');
+    } else {
       testResultsEl.classList.add('error-highlight');
       testResultsEl.classList.remove('success-highlight');
     }
+  } catch (error) {
+    testResultsEl.textContent = `Error running diagnostic test: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    testResultsEl.classList.add('error-highlight');
+    testResultsEl.classList.remove('success-highlight');
+  }
 }
 
 // Add event listener for toggleDebugBtn

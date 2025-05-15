@@ -176,7 +176,7 @@ export async function testAIModel(): Promise<{
       const result = await session.prompt(diagnosticResult.prompt);
       console.log('Response received:', result);
 
-      if (result == undefined) {
+      if (result === undefined) {
         diagnosticResult.error = 'Received empty or undefined response from model';
         diagnosticResult.response = 'undefined';
       } else {
@@ -231,7 +231,7 @@ function formatEventsForPrompt(events: RawEvent[]): string {
         case 'page':
           return `Step ${index + 1} [${timestamp}]: Page ${event.action} at ${event.url}`;
 
-        case 'key':
+        case 'key': {
           const modifiers = [];
           if (event.modifiers.ctrl) modifiers.push('Ctrl');
           if (event.modifiers.alt) modifiers.push('Alt');
@@ -241,6 +241,7 @@ function formatEventsForPrompt(events: RawEvent[]): string {
           const keyCombo = modifiers.length ? `${modifiers.join('+')}+${event.key}` : event.key;
 
           return `Step ${index + 1} [${timestamp}]: User pressed ${keyCombo}`;
+        }
 
         case 'xhr':
         case 'fetch':
@@ -425,7 +426,7 @@ export async function analyzeWorkflow(
     try {
       console.log(
         'Sending prompt to model:',
-        prompt ? prompt.substring(0, 100) + '...' : 'undefined prompt',
+        prompt ? `${prompt.substring(0, 100)}...` : 'undefined prompt',
       );
       result = await session.prompt(prompt);
       console.log('Received response from model:', result);
@@ -546,7 +547,7 @@ export async function analyzeWorkflow(
       summary: 'Error analyzing workflow',
       steps: [
         {
-          action: `Error in analysis process`,
+          action: 'Error in analysis process',
           intent: error instanceof Error ? error.message : 'Unknown error occurred',
         },
       ],
