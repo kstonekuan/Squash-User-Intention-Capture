@@ -1,14 +1,14 @@
 // Extension message types
-export type Message = 
-  | { kind: 'evtBatch', evts: RawEvent[] }
-  | { kind: 'nav', url: string }
-  | { kind: 'openOverlay', tabId: number }
+export type Message =
+  | { kind: 'evtBatch'; evts: RawEvent[] }
+  | { kind: 'nav'; url: string }
+  | { kind: 'openOverlay'; tabId: number }
   | { kind: 'export' }
-  | { kind: 'mark', action: 'start' | 'stop' }
+  | { kind: 'mark'; action: 'start' | 'stop' }
   | { kind: 'analyzeWorkflow' };
 
-// Port message types 
-export type PortMessage = 
+// Port message types
+export type PortMessage =
   | { init: RawEvent[] }
   | { delta: RawEvent[] }
   | { analysis: WorkflowAnalysis };
@@ -16,24 +16,24 @@ export type PortMessage =
 // Raw event types
 export type RawEvent =
   // User interaction events
-  | { 
-      type: 'user'; 
-      target: string; 
-      action: string; 
-      value?: string; 
-      t: number; 
+  | {
+      type: 'user';
+      target: string;
+      action: string;
+      value?: string;
+      t: number;
       url: string;
     }
   // Page navigation events
-  | { 
-      type: 'nav'; 
-      url: string; 
+  | {
+      type: 'nav';
+      url: string;
       t: number;
     }
   // Tab events
-  | { 
-      type: 'tab'; 
-      action: 'activated' | 'created' | 'removed'; 
+  | {
+      type: 'tab';
+      action: 'activated' | 'created' | 'removed';
       t: number;
     }
   // Page lifecycle events
@@ -104,15 +104,17 @@ export type RawEvent =
 
 // AI Analysis response (new in v0.5)
 export interface WorkflowAnalysis {
-  summary: string;        // Overall workflow purpose
-  steps: {                // Step-by-step breakdown
-    action: string;       // What the user did
-    intent: string;       // Why they did it
+  summary: string; // Overall workflow purpose
+  steps: {
+    // Step-by-step breakdown
+    action: string; // What the user did
+    intent: string; // Why they did it
   }[];
   suggestions?: string[]; // Optional improvement suggestions
-  debug?: {              // Debug information (new)
-    prompt?: string;      // The prompt sent to the model
-    error?: string;       // Error message, if any
+  debug?: {
+    // Debug information (new)
+    prompt?: string; // The prompt sent to the model
+    error?: string; // Error message, if any
     rawResponse?: string; // Raw response from the model
     modelStatus?: string; // Model status
   };

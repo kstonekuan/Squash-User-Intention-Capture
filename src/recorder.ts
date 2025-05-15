@@ -19,7 +19,7 @@ type UserEvent = {
 function getElementDescription(el: HTMLElement): string {
   // Get element tag name (with null check)
   let desc = el.tagName ? el.tagName.toLowerCase() : 'unknown';
-  
+
   // Add id if present
   if (el.id) {
     desc += `#${el.id}`;
@@ -28,7 +28,8 @@ function getElementDescription(el: HTMLElement): string {
   // Add classes if any
   if (el.className && typeof el.className === 'string') {
     try {
-      const classes = el.className.split(' ')
+      const classes = el.className
+        .split(' ')
         .filter(c => c)
         .map(c => `.${c}`)
         .join('');
@@ -43,10 +44,9 @@ function getElementDescription(el: HTMLElement): string {
   // Add text content hint for buttons, links, etc.
   try {
     if (
-      el.tagName && 
-      ['A', 'BUTTON', 'LABEL', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']
-        .includes(el.tagName) && 
-      el.textContent && 
+      el.tagName &&
+      ['A', 'BUTTON', 'LABEL', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(el.tagName) &&
+      el.textContent &&
       el.textContent.trim()
     ) {
       const text = el.textContent.trim().substring(0, 20);
@@ -64,7 +64,7 @@ function flush() {
   if (!batch.length) return;
   chrome.runtime.sendMessage({
     kind: 'evtBatch',
-    evts: batch
+    evts: batch,
   } as Message);
   batch = [];
 }
@@ -73,29 +73,31 @@ function flush() {
 function recordEvent(type: string, event: Event) {
   try {
     if (!event.target) return;
-    
+
     // Ensure target is an HTMLElement before proceeding
     if (!(event.target instanceof HTMLElement)) {
       console.warn('Event target is not an HTMLElement', event.target);
       return;
     }
-    
+
     const target = event.target as HTMLElement;
     let value: string | undefined;
     let action = type;
-    
+
     // Extract additional info based on event type
     if (type === 'change' || type === 'input-submit') {
-      if (target instanceof HTMLInputElement || 
-          target instanceof HTMLSelectElement || 
-          target instanceof HTMLTextAreaElement) {
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLTextAreaElement
+      ) {
         if (target.type === 'password') {
           // Mask password values
           value = '••••••••';
         } else {
           value = target.value;
         }
-        
+
         // For input-submit, we want to indicate it was captured at submission
         if (type === 'input-submit') {
           action = 'input-at-submit';
@@ -105,21 +107,21 @@ function recordEvent(type: string, event: Event) {
       // For form submissions
       action = 'submit';
     }
-    
+
     const userEvent: UserEvent = {
       type: 'user',
       target: getElementDescription(target),
       action,
       t: Date.now(),
-      url: window.location.href
+      url: window.location.href,
     };
-    
+
     if (value !== undefined) {
       userEvent.value = value;
     }
-    
+
     batch.push(userEvent);
-    
+
     if (batch.length >= BATCH_MAX) {
       flush();
     }
@@ -129,88 +131,107 @@ function recordEvent(type: string, event: Event) {
 }
 
 // Set up click event listeners
-document.addEventListener('click', (e) => {
-  try {
-    // Ensure target is an HTMLElement before proceeding
-    if (!(e.target instanceof HTMLElement)) {
-      console.warn('Click target is not an HTMLElement', e.target);
-      return;
+document.addEventListener(
+  'click',
+  e => {
+    try {
+      // Ensure target is an HTMLElement before proceeding
+      if (!(e.target instanceof HTMLElement)) {
+        console.warn('Click target is not an HTMLElement', e.target);
+        return;
+      }
+
+      const target = e.target as HTMLElement;
+      // Don't record clicks on the body or document
+      if (!target.tagName || target.tagName === 'BODY' || target.tagName === 'HTML') {
+        return;
+      }
+      recordEvent('click', e);
+    } catch (error) {
+      console.error('Error processing click event:', error);
     }
-    
-    const target = e.target as HTMLElement;
-    // Don't record clicks on the body or document
-    if (!target.tagName || target.tagName === 'BODY' || target.tagName === 'HTML') {
-      return;
-    }
-    recordEvent('click', e);
-  } catch (error) {
-    console.error('Error processing click event:', error);
-  }
-}, true);
+  },
+  true,
+);
 
 // Form interactions
-document.addEventListener('submit', (e) => {
-  try {
-    if (!(e.target instanceof HTMLFormElement)) {
-      console.warn('Submit target is not a form', e.target);
-      return;
-    }
-    
-    const form = e.target as HTMLFormElement;
-    const formElements = Array.from(form.elements);
-    
-    // Record the form submission
-    recordEvent('submit', e);
-    
-    // Record the values of form inputs at submission time
-    formElements.forEach(element => {
-      if (element instanceof HTMLInputElement || 
-          element instanceof HTMLSelectElement || 
-          element instanceof HTMLTextAreaElement) {
-        
-        // Skip buttons and hidden fields
-        if (element instanceof HTMLInputElement && 
-            (element.type === 'button' || element.type === 'submit' || element.type === 'hidden')) {
-          return;
-        }
-        
-        // Create a synthetic event with the target as the input element
-        const syntheticEvent = new Event('change');
-        Object.defineProperty(syntheticEvent, 'target', { value: element });
-        
-        // Record the input value at form submission time
-        recordEvent('input-submit', syntheticEvent);
+document.addEventListener(
+  'submit',
+  e => {
+    try {
+      if (!(e.target instanceof HTMLFormElement)) {
+        console.warn('Submit target is not a form', e.target);
+        return;
       }
-    });
-  } catch (error) {
-    console.error('Error recording form submission:', error);
-  }
-}, true);
+
+      const form = e.target as HTMLFormElement;
+      const formElements = Array.from(form.elements);
+
+      // Record the form submission
+      recordEvent('submit', e);
+
+      // Record the values of form inputs at submission time
+      formElements.forEach(element => {
+        if (
+          element instanceof HTMLInputElement ||
+          element instanceof HTMLSelectElement ||
+          element instanceof HTMLTextAreaElement
+        ) {
+          // Skip buttons and hidden fields
+          if (
+            element instanceof HTMLInputElement &&
+            (element.type === 'button' || element.type === 'submit' || element.type === 'hidden')
+          ) {
+            return;
+          }
+
+          // Create a synthetic event with the target as the input element
+          const syntheticEvent = new Event('change');
+          Object.defineProperty(syntheticEvent, 'target', { value: element });
+
+          // Record the input value at form submission time
+          recordEvent('input-submit', syntheticEvent);
+        }
+      });
+    } catch (error) {
+      console.error('Error recording form submission:', error);
+    }
+  },
+  true,
+);
 
 // Not recording individual input events anymore - only on submit
 
-document.addEventListener('change', (e) => {
-  recordEvent('change', e);
-}, true);
+document.addEventListener(
+  'change',
+  e => {
+    recordEvent('change', e);
+  },
+  true,
+);
 
 // Scroll events (debounced)
 let scrollTimeout: number | null = null;
-document.addEventListener('scroll', (e) => {
-  if (scrollTimeout) {
-    window.clearTimeout(scrollTimeout);
-  }
-  
-  scrollTimeout = window.setTimeout(() => {
-    recordEvent('scroll', e);
-    scrollTimeout = null;
-  }, 100);  // Debounce to avoid too many events
-}, true);
+document.addEventListener(
+  'scroll',
+  e => {
+    if (scrollTimeout) {
+      window.clearTimeout(scrollTimeout);
+    }
+
+    scrollTimeout = window.setTimeout(() => {
+      recordEvent('scroll', e);
+      scrollTimeout = null;
+    }, 100); // Debounce to avoid too many events
+  },
+  true,
+);
 
 // Navigation events
 window.addEventListener('beforeunload', () => {
   chrome.runtime.sendMessage({
     kind: 'nav',
-    url: location.href
+    url: location.href,
   } as Message);
 });
 
@@ -220,135 +241,155 @@ document.addEventListener('visibilitychange', () => {
     type: 'visibility',
     action: document.visibilityState,
     t: Date.now(),
-    url: window.location.href
+    url: window.location.href,
   });
-  
+
   if (batch.length >= BATCH_MAX) {
     flush();
   }
 });
 
 // Keypress events (only record which keys were pressed, not the specific characters)
-document.addEventListener('keydown', (e) => {
-  // Handle Enter key press on input fields specially
-  if (e.key === 'Enter' && 
-      (e.target instanceof HTMLInputElement || 
-       e.target instanceof HTMLTextAreaElement)) {
-    
-    // Don't capture Enter on multiline textareas unless Ctrl/Cmd is pressed (form submission)
-    if (e.target instanceof HTMLTextAreaElement && 
-        !e.ctrlKey && !e.metaKey && e.target.value.includes('\n')) {
-      return;
-    }
-    
-    // If it's a single line input or textarea with Ctrl+Enter, capture the value
-    const target = e.target as HTMLInputElement | HTMLTextAreaElement;
-    const value = target.type === 'password' ? '••••••••' : target.value;
-    
-    batch.push({
-      type: 'user',
-      target: getElementDescription(target),
-      action: 'input-enter',
-      value,
-      t: Date.now(),
-      url: window.location.href
-    });
-    
-    if (batch.length >= BATCH_MAX) {
-      flush();
-    }
-    return;
-  }
-  
-  // Skip if the target is an input field - we'll capture those via input events
-  if (e.target instanceof HTMLInputElement || 
-      e.target instanceof HTMLTextAreaElement ||
-      e.target instanceof HTMLSelectElement) {
-    return;
-  }
-
-  // Record special keys and combinations
-  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || 
-      e.key === 'Enter' || e.key === 'Escape' || e.key === 'Tab' ||
-      e.key.startsWith('Arrow') || e.key.startsWith('Page')) {
-      
-    batch.push({
-      type: 'key',
-      action: 'keydown',
-      key: e.key,
-      modifiers: {
-        ctrl: e.ctrlKey,
-        alt: e.altKey,
-        shift: e.shiftKey,
-        meta: e.metaKey,
-      },
-      t: Date.now(),
-      url: window.location.href
-    });
-    
-    if (batch.length >= BATCH_MAX) {
-      flush();
-    }
-  }
-}, true);
-
-// Text selection/highlighting capture
-let selectionTimeout: number | null = null;
-document.addEventListener('selectionchange', () => {
-  // Debounce to avoid capturing too many events during selection
-  if (selectionTimeout) {
-    window.clearTimeout(selectionTimeout);
-  }
-  
-  selectionTimeout = window.setTimeout(() => {
-    try {
-      const selection = window.getSelection();
-      if (!selection || selection.isCollapsed || !selection.toString().trim()) {
-        return; // Skip if no selection or empty selection
+document.addEventListener(
+  'keydown',
+  e => {
+    // Handle Enter key press on input fields specially
+    if (
+      e.key === 'Enter' &&
+      (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)
+    ) {
+      // Don't capture Enter on multiline textareas unless Ctrl/Cmd is pressed (form submission)
+      if (
+        e.target instanceof HTMLTextAreaElement &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        e.target.value.includes('\n')
+      ) {
+        return;
       }
-      
-      const selectedText = selection.toString().trim();
-      // Limit length to avoid extremely long selections
-      const trimmedText = selectedText.length > 500 
-        ? selectedText.substring(0, 500) + '...' 
-        : selectedText;
-      
-      // Get parent element of selection for context
-      let targetElement: HTMLElement | null = null;
-      if (selection.anchorNode) {
-        targetElement = selection.anchorNode.parentElement;
-      }
-      
+
+      // If it's a single line input or textarea with Ctrl+Enter, capture the value
+      const target = e.target as HTMLInputElement | HTMLTextAreaElement;
+      const value = target.type === 'password' ? '••••••••' : target.value;
+
       batch.push({
         type: 'user',
-        target: targetElement ? getElementDescription(targetElement) : 'text',
-        action: 'select',
-        value: trimmedText,
+        target: getElementDescription(target),
+        action: 'input-enter',
+        value,
         t: Date.now(),
-        url: window.location.href
+        url: window.location.href,
       });
-      
+
       if (batch.length >= BATCH_MAX) {
         flush();
       }
-    } catch (error) {
-      console.error('Error processing text selection:', error);
+      return;
     }
-    
-    selectionTimeout = null;
-  }, 500); // Wait for selection to complete before capturing
-}, true);
+
+    // Skip if the target is an input field - we'll capture those via input events
+    if (
+      e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLTextAreaElement ||
+      e.target instanceof HTMLSelectElement
+    ) {
+      return;
+    }
+
+    // Record special keys and combinations
+    if (
+      e.ctrlKey ||
+      e.altKey ||
+      e.metaKey ||
+      e.shiftKey ||
+      e.key === 'Enter' ||
+      e.key === 'Escape' ||
+      e.key === 'Tab' ||
+      e.key.startsWith('Arrow') ||
+      e.key.startsWith('Page')
+    ) {
+      batch.push({
+        type: 'key',
+        action: 'keydown',
+        key: e.key,
+        modifiers: {
+          ctrl: e.ctrlKey,
+          alt: e.altKey,
+          shift: e.shiftKey,
+          meta: e.metaKey,
+        },
+        t: Date.now(),
+        url: window.location.href,
+      });
+
+      if (batch.length >= BATCH_MAX) {
+        flush();
+      }
+    }
+  },
+  true,
+);
+
+// Text selection/highlighting capture
+let selectionTimeout: number | null = null;
+document.addEventListener(
+  'selectionchange',
+  () => {
+    // Debounce to avoid capturing too many events during selection
+    if (selectionTimeout) {
+      window.clearTimeout(selectionTimeout);
+    }
+
+    selectionTimeout = window.setTimeout(() => {
+      try {
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+          return; // Skip if no selection or empty selection
+        }
+
+        const selectedText = selection.toString().trim();
+        // Limit length to avoid extremely long selections
+        const trimmedText =
+          selectedText.length > 500 ? selectedText.substring(0, 500) + '...' : selectedText;
+
+        // Get parent element of selection for context
+        let targetElement: HTMLElement | null = null;
+        if (selection.anchorNode) {
+          targetElement = selection.anchorNode.parentElement;
+        }
+
+        batch.push({
+          type: 'user',
+          target: targetElement ? getElementDescription(targetElement) : 'text',
+          action: 'select',
+          value: trimmedText,
+          t: Date.now(),
+          url: window.location.href,
+        });
+
+        if (batch.length >= BATCH_MAX) {
+          flush();
+        }
+      } catch (error) {
+        console.error('Error processing text selection:', error);
+      }
+
+      selectionTimeout = null;
+    }, 500); // Wait for selection to complete before capturing
+  },
+  true,
+);
 
 // Record URL hash changes
-window.addEventListener('hashchange', (e) => {
+window.addEventListener('hashchange', e => {
   batch.push({
     type: 'hashchange',
     from: e.oldURL,
     to: e.newURL,
     t: Date.now(),
-    url: window.location.href
+    url: window.location.href,
   });
-  
+
   if (batch.length >= BATCH_MAX) {
     flush();
   }
@@ -360,12 +401,12 @@ window.addEventListener('hashchange', (e) => {
 const originalXHROpen = XMLHttpRequest.prototype.open;
 const originalXHRSend = XMLHttpRequest.prototype.send;
 
-XMLHttpRequest.prototype.open = function(
-  method: string, 
-  url: string | URL, 
-  _async?: boolean, 
-  _username?: string | null, 
-  _password?: string | null
+XMLHttpRequest.prototype.open = function (
+  method: string,
+  url: string | URL,
+  _async?: boolean,
+  _username?: string | null,
+  _password?: string | null,
 ) {
   // Store method and URL for later use in send
   (this as any)._workflowMethod = method;
@@ -374,7 +415,7 @@ XMLHttpRequest.prototype.open = function(
   return originalXHROpen.apply(this, arguments as any);
 };
 
-XMLHttpRequest.prototype.send = function(body) {
+XMLHttpRequest.prototype.send = function (body) {
   // Log the XHR request
   batch.push({
     type: 'xhr',
@@ -382,21 +423,21 @@ XMLHttpRequest.prototype.send = function(body) {
     url: (this as any)._workflowUrl,
     // Don't log the actual request body for privacy reasons
     t: Date.now(),
-    pageUrl: window.location.href
+    pageUrl: window.location.href,
   });
-  
+
   if (batch.length >= BATCH_MAX) {
     flush();
   }
-  
+
   return originalXHRSend.apply(this, [body] as any);
 };
 
 // Observe fetch requests
 const originalFetch = window.fetch;
-window.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
+window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
   let resource: string;
-  
+
   if (typeof input === 'string') {
     resource = input;
   } else if (input instanceof URL) {
@@ -405,21 +446,21 @@ window.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
     // It's a Request object
     resource = input.url;
   }
-  
+
   const method = init?.method || 'GET';
-  
+
   batch.push({
     type: 'fetch',
     method,
     url: resource,
     t: Date.now(),
-    pageUrl: window.location.href
+    pageUrl: window.location.href,
   });
-  
+
   if (batch.length >= BATCH_MAX) {
     flush();
   }
-  
+
   return originalFetch.call(window, input, init);
 };
 
@@ -431,7 +472,7 @@ batch.push({
   type: 'page',
   action: 'visit',
   t: Date.now(),
-  url: window.location.href
+  url: window.location.href,
 });
 
 // Handle errors to prevent extension crashes

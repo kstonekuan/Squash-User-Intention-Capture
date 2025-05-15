@@ -1,8 +1,12 @@
-import { defineConfig } from 'vite';
 import { crx } from '@crxjs/vite-plugin';
 import { resolve } from 'path';
+import { defineConfig, loadEnv } from 'vite';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd());
+  console.log(`Building extension in ${mode} mode, trial token available: ${!!env.VITE_TRIAL_TOKEN}`);
+  
+  return {
   plugins: [
     crx({
       manifest: {
@@ -15,7 +19,7 @@ export default defineConfig({
           "storage", "downloads", "aiLanguageModelOriginTrial"
         ],
         trial_tokens: [
-          "Alnh5NtJggd3VseHmshny+4of2NiIFZ+sfU3bdb0V2qXTa/VxU/Ds8OLOhenJmr+srNa2wEoq0yDzQwe2UH8bwgAAAB4eyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8vbWVnaW1oaGpsaW5rbWNrbmNsaGFvY2NubmRqam9qZ2siLCJmZWF0dXJlIjoiQUlQcm9tcHRBUElGb3JFeHRlbnNpb24iLCJleHBpcnkiOjE3NjA0ODYzOTl9"
+          env.VITE_TRIAL_TOKEN || ""
         ],
         "minimum_chrome_version": "131",
         host_permissions: ["<all_urls>"],
@@ -43,4 +47,5 @@ export default defineConfig({
       '@': resolve(__dirname, 'src')
     }
   }
+  };
 });
