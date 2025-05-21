@@ -185,7 +185,7 @@ You are an expert in analyzing user workflows in web applications. I'll provide 
 
 1. Identify the overall goal/purpose of this workflow - make it generalizable to similar workflows.
 2. For each significant action, explain what the user was trying to accomplish
-3. Suggest any optimizations or shortcuts that a browser agent, who understands web applications, could take to shortcut the workflow.
+3. Provide any suggestions on what someone should look out for when executing this workflow, how to optimize it, or any potential pitfalls.
 
 Your analysis should be structured as follows:
 {
@@ -197,8 +197,10 @@ Your analysis should be structured as follows:
     }
   ],
   "suggestions": [
-    "Suggestion 1 for optimization",
-    "Suggestion 2 for optimization"
+    "E.g. What to look out for when executing this workflow",
+    "E.g. How to optimize the workflow",
+    "E.g. Potential pitfalls or issues to be aware of"
+    "E.g. What to do when it doesn't work as expected"
   ]
 }
 
