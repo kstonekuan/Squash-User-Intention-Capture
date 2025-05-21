@@ -28,7 +28,7 @@ declare global {
   class LanguageModel {
     static create(options?: LanguageModelPromptOptions): Promise<LanguageModelSession>;
     static params(): Promise<{ defaultTemperature: number; defaultTopK: number; maxTopK: number }>;
-    static availability(): Promise<'no' | 'readily' | 'after-download'>;
+    static availability(): Promise<'no' | 'readily' | 'available' | 'after-download'>;
   }
 }
 

@@ -65,7 +65,6 @@
   
   <div class="card">
     <h2>API Detection</h2>
-    <p>Is chrome available? <span id="chromeStatus">Checking...</span></p>
     <p>Is LanguageModel available? <span id="aiTrialStatus">Checking...</span></p>
     <p>Is LanguageModel.create available? <span id="langModelStatus">Checking...</span></p>
   </div>
@@ -132,16 +131,10 @@
       statusEl.className = 'status';
       
       try {
-        // Check if the API exists at runtime
-        if (typeof LanguageModel === 'undefined') {
-          statusEl.textContent = '❌ LanguageModel API not available in this browser';
-          statusEl.className = 'status unavailable';
-          return;
-        }
         
         // Check actual availability status
         const available = await LanguageModel.availability();
-        if (available === 'readily') {
+        if (available === 'readily' || available === 'available') {
           statusEl.textContent = '✅ Available';
           statusEl.className = 'status available';
         } else if (available === 'after-download') {

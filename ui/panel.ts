@@ -393,15 +393,9 @@ debugTab.addEventListener('click', () => setActiveTab('debug'));
 // Debug tab functionality
 // Check environment
 function checkEnvironment() {
-  // Check if Chrome is available
-  if (typeof chrome !== 'undefined') {
-    chromeStatusEl.textContent = '✅ Yes';
-  } else {
-    chromeStatusEl.textContent = '❌ No';
-  }
 
   // Check if LanguageModel is available
-  if (typeof chrome !== 'undefined' && 'LanguageModel' in chrome) {
+  if (typeof LanguageModel !== 'undefined') {
     aiTrialStatusEl.textContent = '✅ Yes';
   } else {
     aiTrialStatusEl.textContent = '❌ No';
@@ -409,10 +403,9 @@ function checkEnvironment() {
 
   // Check if key LanguageModel methods are available
   if (
-    typeof chrome !== 'undefined' &&
-    'LanguageModel' in chrome &&
-    'availability' in chrome.LanguageModel &&
-    'create' in chrome.LanguageModel
+    typeof LanguageModel !== 'undefined' &&
+    'availability' in LanguageModel &&
+    'create' in LanguageModel
   ) {
     langModelStatusEl.textContent = '✅ Yes';
   } else {
@@ -426,16 +419,10 @@ async function checkModelAvailability() {
   statusEl.className = 'status';
 
   try {
-    // Check if the API exists at runtime
-    if (!('LanguageModel' in chrome)) {
-      statusEl.textContent = '❌ LanguageModel API not available in this browser';
-      statusEl.className = 'status unavailable';
-      return;
-    }
 
     // Check actual availability status
-    const available = await chrome.LanguageModel.availability();
-    if (available === 'readily') {
+    const available = await LanguageModel.availability();
+    if (available === 'readily' || available === 'available') {
       statusEl.textContent = '✅ Available';
       statusEl.className = 'status available';
     } else if (available === 'after-download') {
@@ -448,7 +435,7 @@ async function checkModelAvailability() {
 
     // Try to get parameters
     try {
-      const params = await chrome.LanguageModel.params();
+      const params = await LanguageModel.params();
       paramsEl.textContent = JSON.stringify(params, null, 2);
     } catch (error) {
       paramsEl.textContent = `Error: ${error.message || 'Unknown error'}`;
