@@ -218,7 +218,13 @@ function formatEventsForPrompt(events: RawEvent[]): string {
           return `Step ${index + 1} [${timestamp}]: User navigated to ${event.url}`;
 
         case 'tab':
+          if (event.action === 'activated' && event.title) {
+            return `Step ${index + 1} [${timestamp}]: Tab was ${event.action} - "${event.title}"`;
+          }
           return `Step ${index + 1} [${timestamp}]: Tab was ${event.action}`;
+
+        case 'hashchange':
+          return `Step ${index + 1} [${timestamp}]: User navigated to anchor link from ${event.from} to ${event.to}`;
 
         case 'page':
           return `Step ${index + 1} [${timestamp}]: Page ${event.action} at ${event.url}`;

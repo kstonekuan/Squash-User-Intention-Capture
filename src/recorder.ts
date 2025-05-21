@@ -85,7 +85,7 @@ function recordEvent(type: string, event: Event) {
     let action = type;
 
     // Extract additional info based on event type
-    if (type === 'change' || type === 'input-submit') {
+    if (type === 'change' || type === 'input-submit' || type === 'input-debounced') {
       if (
         target instanceof HTMLInputElement ||
         target instanceof HTMLSelectElement ||
@@ -146,6 +146,26 @@ document.addEventListener(
       if (!target.tagName || target.tagName === 'BODY' || target.tagName === 'HTML') {
         return;
       }
+      
+      // Check if this is an anchor link with a hash
+      if (target.tagName === 'A' && target instanceof HTMLAnchorElement) {
+        const url = target.href;
+        if (url && url.includes('#') && !window.location.href.endsWith(url.substring(url.indexOf('#')))) {
+          // This is a hash link that's not already in the current URL
+          batch.push({
+            type: 'hashchange',
+            from: window.location.href,
+            to: url,
+            t: Date.now(),
+            url: window.location.href,
+          });
+
+          if (batch.length >= BATCH_MAX) {
+            flush();
+          }
+        }
+      }
+      
       recordEvent('click', e);
     } catch (error) {
       console.error('Error processing click event:', error);
@@ -200,12 +220,69 @@ document.addEventListener(
   true,
 );
 
-// Not recording individual input events anymore - only on submit
+// Record input events with debounce
+let inputTimeout: number | null = null;
+const INPUT_DEBOUNCE_MS = 1000; // 1 second debounce
 
+document.addEventListener(
+  'input',
+  e => {
+    if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+      return;
+    }
+    
+    // Skip password fields
+    if (e.target instanceof HTMLInputElement && e.target.type === 'password') {
+      return;
+    }
+    
+    // Debounce input events
+    if (inputTimeout) {
+      window.clearTimeout(inputTimeout);
+    }
+    
+    inputTimeout = window.setTimeout(() => {
+      recordEvent('input-debounced', e);
+      inputTimeout = null;
+    }, INPUT_DEBOUNCE_MS);
+  },
+  true
+);
+
+// Record change events (for dropdowns, etc.)
 document.addEventListener(
   'change',
   e => {
-    recordEvent('change', e);
+    // Special handling for select elements to capture the selected option value and text
+    if (e.target instanceof HTMLSelectElement) {
+      const select = e.target;
+      const selectedOption = select.options[select.selectedIndex];
+      const value = select.value;
+      const text = selectedOption ? selectedOption.text : '';
+      
+      // Create a custom event with additional data
+      const syntheticEvent = new Event('change');
+      Object.defineProperty(syntheticEvent, 'target', { value: select });
+      
+      // Store both the value and display text
+      const userEvent: UserEvent = {
+        type: 'user',
+        target: getElementDescription(select),
+        action: 'select-option',
+        value: `${value} (${text})`, // Include both value and text
+        t: Date.now(),
+        url: window.location.href,
+      };
+      
+      batch.push(userEvent);
+      
+      if (batch.length >= BATCH_MAX) {
+        flush();
+      }
+    } else {
+      // Regular change event for other elements
+      recordEvent('change', e);
+    }
   },
   true,
 );

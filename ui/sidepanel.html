@@ -256,6 +256,12 @@
     .analysis-section {
       margin-bottom: 16px;
     }
+    
+    .analysis-actions {
+      margin: 16px 0;
+      display: flex;
+      justify-content: center;
+    }
 
     .analysis-section h2 {
       font-size: 14px;
@@ -524,6 +530,10 @@
           <div class="analysis-section analysis-suggestions">
             <h2>Suggestions</h2>
             <ul id="workflowSuggestions"></ul>
+          </div>
+          
+          <div class="analysis-actions">
+            <button id="retryAnalysisBtn" class="btn btn-primary">Retry Analysis</button>
           </div>
           
           <div class="analysis-section analysis-debug">

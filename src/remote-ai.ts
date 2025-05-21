@@ -133,7 +133,13 @@ function formatEventsForPrompt(events: RawEvent[]): string {
           return `Step ${index + 1} [${timestamp}]: User navigated to ${event.url}`;
 
         case 'tab':
+          if (event.action === 'activated' && event.title) {
+            return `Step ${index + 1} [${timestamp}]: Tab was ${event.action} - "${event.title}"`;
+          }
           return `Step ${index + 1} [${timestamp}]: Tab was ${event.action}`;
+
+        case 'hashchange':
+          return `Step ${index + 1} [${timestamp}]: User navigated to anchor link from ${event.from} to ${event.to}`;
 
         case 'page':
           return `Step ${index + 1} [${timestamp}]: Page ${event.action} at ${event.url}`;
@@ -177,13 +183,13 @@ function createPrompt(events: RawEvent[], customPrompt?: string): string {
   return `
 You are an expert in analyzing user workflows in web applications. I'll provide you with a sequence of user interactions, and I need you to:
 
-1. Identify the overall goal/purpose of this workflow, so that a browser agent can use it replicate the user's actions.
+1. Identify the overall goal/purpose of this workflow - make it generalizable to similar workflows.
 2. For each significant action, explain what the user was trying to accomplish
-3. Suggest any potential optimizations or shortcuts a browser agent could use to achieve the same result more efficiently.
+3. Suggest any optimizations or shortcuts that a browser agent, who understands web applications, could take to shortcut the workflow.
 
 Your analysis should be structured as follows:
 {
-  "summary": "Brief description of the overall workflow purpose",
+  "summary": "Brief description of the overall workflow purpose - generalizable to similar workflows",
   "steps": [
     {
       "action": "What the user did",
@@ -200,7 +206,7 @@ Here is the workflow sequence:
 
 ${formattedEvents}
 
-Respond with only valid JSON.
+Respond with only valid JSON. (No explanations, no additional text, just the JSON response. No markdown or code blocks.)
 `;
 }
 

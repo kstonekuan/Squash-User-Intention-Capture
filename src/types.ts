@@ -6,6 +6,7 @@ export type Message =
   | { kind: 'export' }
   | { kind: 'mark'; action: 'start' | 'stop' }
   | { kind: 'analyzeWorkflow' }
+  | { kind: 'retryAnalysis' }
   | { kind: 'setRemoteAI'; enabled: boolean }
   | { kind: 'testRemoteAI' };
 
@@ -37,6 +38,7 @@ export type RawEvent =
       type: 'tab';
       action: 'activated' | 'created' | 'removed';
       t: number;
+      title?: string; // Tab title when activated
     }
   // Page lifecycle events
   | {

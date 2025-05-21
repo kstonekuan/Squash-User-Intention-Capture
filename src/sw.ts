@@ -20,13 +20,17 @@ let lastPersistedIndex = 0;
 let currentWorkflow: WorkflowMarkers | null = null;
 
 // Tab management
-chrome.tabs.onActivated.addListener(() => {
-  const event: RawEvent = {
-    type: 'tab',
-    action: 'activated',
-    t: Date.now(),
-  };
-  push([event]);
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  // Get the tab details to include the title
+  chrome.tabs.get(activeInfo.tabId, (tab) => {
+    const event: RawEvent = {
+      type: 'tab',
+      action: 'activated',
+      t: Date.now(),
+      title: tab.title || 'Untitled Tab'
+    };
+    push([event]);
+  });
 });
 
 chrome.tabs.onCreated.addListener(() => {
@@ -67,6 +71,17 @@ chrome.runtime.onMessage.addListener(async (msg: Message, _sender, sendResponse)
   // Handle manual workflow analysis request
   if (msg.kind === 'analyzeWorkflow') {
     handleWorkflowAnalysis();
+  }
+
+  // Handle retry analysis request
+  if (msg.kind === 'retryAnalysis') {
+    if (currentWorkflow && currentWorkflow.endIndex !== undefined) {
+      handleWorkflowAnalysis();
+      sendResponse({ success: true });
+    } else {
+      sendResponse({ success: false, error: 'No workflow available to retry' });
+    }
+    return true;
   }
 
   // Handle remote AI settings

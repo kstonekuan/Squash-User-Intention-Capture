@@ -8,6 +8,7 @@ const exportBtn = document.getElementById('exportBtn') as HTMLButtonElement;
 const clearBtn = document.getElementById('clearBtn') as HTMLButtonElement;
 const startMarkBtn = document.getElementById('startMarkBtn') as HTMLButtonElement;
 const stopMarkBtn = document.getElementById('stopMarkBtn') as HTMLButtonElement;
+const retryAnalysisBtn = document.getElementById('retryAnalysisBtn') as HTMLButtonElement;
 const aiModelLabel = document.getElementById('aiModelLabel') as HTMLSpanElement;
 const eventsTab = document.getElementById('eventsTab') as HTMLDivElement;
 const analysisTab = document.getElementById('analysisTab') as HTMLDivElement;
@@ -362,6 +363,37 @@ function stopRecording(): void {
   chrome.runtime.sendMessage({ kind: 'mark', action: 'stop' });
 }
 
+// Retry analysis
+function retryAnalysis(): void {
+  // Show loading indicator
+  setActiveTab('analysis');
+  showAnalysisLoading();
+
+  // Send retry message to service worker
+  chrome.runtime.sendMessage({ kind: 'retryAnalysis' }, (response) => {
+    if (!response || !response.success) {
+      // Hide loading and show error
+      hideAnalysisLoading();
+      
+      const errorMessage = response?.error || 'Unknown error retrying analysis';
+      displayAnalysis({
+        summary: 'Error Retrying Analysis',
+        steps: [
+          {
+            action: 'Error',
+            intent: errorMessage
+          }
+        ],
+        debug: {
+          error: errorMessage,
+          modelStatus: 'error',
+        }
+      });
+    }
+    // On success, we'll get a message via port with the analysis results
+  });
+}
+
 // Event listeners
 exportBtn.addEventListener('click', () => {
   try {
@@ -387,6 +419,7 @@ clearBtn.addEventListener('click', () => {
 
 startMarkBtn.addEventListener('click', startRecording);
 stopMarkBtn.addEventListener('click', stopRecording);
+retryAnalysisBtn.addEventListener('click', retryAnalysis);
 
 eventsTab.addEventListener('click', () => setActiveTab('events'));
 analysisTab.addEventListener('click', () => setActiveTab('analysis'));
