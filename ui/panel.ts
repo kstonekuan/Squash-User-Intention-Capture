@@ -400,19 +400,19 @@ function checkEnvironment() {
     chromeStatusEl.textContent = '❌ No';
   }
 
-  // Check if aiOriginTrial is available
-  if (typeof chrome !== 'undefined' && 'aiOriginTrial' in chrome) {
+  // Check if LanguageModel is available
+  if (typeof chrome !== 'undefined' && 'LanguageModel' in chrome) {
     aiTrialStatusEl.textContent = '✅ Yes';
   } else {
     aiTrialStatusEl.textContent = '❌ No';
   }
 
-  // Check if languageModel is available
+  // Check if key LanguageModel methods are available
   if (
     typeof chrome !== 'undefined' &&
-    'aiOriginTrial' in chrome &&
-    chrome.aiOriginTrial &&
-    'languageModel' in chrome.aiOriginTrial
+    'LanguageModel' in chrome &&
+    'availability' in chrome.LanguageModel &&
+    'create' in chrome.LanguageModel
   ) {
     langModelStatusEl.textContent = '✅ Yes';
   } else {
@@ -427,22 +427,19 @@ async function checkModelAvailability() {
 
   try {
     // Check if the API exists at runtime
-    if (!('aiOriginTrial' in chrome)) {
-      statusEl.textContent = '❌ AI Origin Trial API not available in this browser';
-      statusEl.className = 'status unavailable';
-      return;
-    }
-
-    if (!chrome.aiOriginTrial || !chrome.aiOriginTrial.languageModel) {
-      statusEl.textContent = '❌ Language Model API not available';
+    if (!('LanguageModel' in chrome)) {
+      statusEl.textContent = '❌ LanguageModel API not available in this browser';
       statusEl.className = 'status unavailable';
       return;
     }
 
     // Check actual availability status
-    const available = await chrome.aiOriginTrial.languageModel.availability();
-    if (available === 'available') {
+    const available = await chrome.LanguageModel.availability();
+    if (available === 'readily') {
       statusEl.textContent = '✅ Available';
+      statusEl.className = 'status available';
+    } else if (available === 'after-download') {
+      statusEl.textContent = '⚠️ Available after download';
       statusEl.className = 'status available';
     } else {
       statusEl.textContent = `❌ Not Available (status: ${available})`;
@@ -451,27 +448,14 @@ async function checkModelAvailability() {
 
     // Try to get parameters
     try {
-      if (chrome.aiOriginTrial.languageModel.params) {
-        const params = await chrome.aiOriginTrial.languageModel.params();
-        paramsEl.textContent = JSON.stringify(params, null, 2);
-      } else {
-        paramsEl.textContent = 'Method not available';
-      }
+      const params = await chrome.LanguageModel.params();
+      paramsEl.textContent = JSON.stringify(params, null, 2);
     } catch (error) {
       paramsEl.textContent = `Error: ${error.message || 'Unknown error'}`;
     }
 
-    // Try to get capabilities
-    try {
-      if (chrome.aiOriginTrial.languageModel.capabilities) {
-        const capabilities = await chrome.aiOriginTrial.languageModel.capabilities();
-        capabilitiesEl.textContent = JSON.stringify(capabilities, null, 2);
-      } else {
-        capabilitiesEl.textContent = 'Method not available';
-      }
-    } catch (error) {
-      capabilitiesEl.textContent = `Error: ${error.message || 'Unknown error'}`;
-    }
+    // Model capabilities is part of the params response
+    capabilitiesEl.textContent = 'Model capabilities included in params response';
   } catch (error) {
     statusEl.textContent = `❌ Error checking availability: ${error.message || 'Unknown error'}`;
     statusEl.className = 'status unavailable';

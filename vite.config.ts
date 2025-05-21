@@ -5,7 +5,7 @@ import { defineConfig, loadEnv } from 'vite';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd());
   console.log(
-    `Building extension in ${mode} mode, trial token available: ${!!env.VITE_TRIAL_TOKEN}`,
+    `Building extension in ${mode} mode`,
   );
 
   return {
@@ -22,9 +22,7 @@ export default defineConfig(({ mode }) => {
             'sidePanel',
             'storage',
             'downloads',
-            'aiLanguageModelOriginTrial',
           ],
-          trial_tokens: [env.VITE_TRIAL_TOKEN || ''],
           minimum_chrome_version: '131',
           host_permissions: ['<all_urls>'],
           background: {

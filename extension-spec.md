@@ -200,8 +200,6 @@ The extension uses the Chrome AI Prompt API to analyze the marked workflow seque
 4. **Developer Mode** - Allows customization of the prompt for different analysis perspectives
 
 Implementation details:
-* Uses `chrome.aiOriginTrial.languageModel` APIs for prompt processing
-* Requires Chrome 131+ with AI Origin Trial permissions
 * Process runs locally on-device, no data is sent to the cloud
 * Only analyzes the events between Start and Stop markers
 * Provides a UI for viewing and customizing the analysis

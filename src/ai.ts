@@ -1,38 +1,34 @@
 import type { RawEvent, WorkflowAnalysis } from './types';
 
-// Define types for Chrome AI Origin Trial API
+// Define types for Chrome LanguageModel API
 // These types are not yet available in @types/chrome
 declare global {
   interface Window {
     chrome: typeof chrome;
   }
 
-  namespace chrome {
-    namespace aiOriginTrial {
-      interface LanguageModelCapabilities {
-        supportedModels: string[];
-      }
-      interface LanguageModelSession {
-        prompt(prompt: string): Promise<string>;
-        destroy(): void;
-      }
+  interface LanguageModelPromptOptions {
+    temperature?: number;
+    topK?: number;
+    signal?: AbortSignal;
+    initialPrompts?: Array<{
+      role: 'system' | 'user' | 'model';
+      content: string;
+    }>;
+  }
 
-      namespace languageModel {
-        function capabilities(): Promise<LanguageModelCapabilities>;
-        function create(options?: {
-          topK?: number;
-          temperature?: number;
-          monitor?: (m: {
-            addEventListener(
-              event: 'downloadprogress',
-              listener: (e: { loaded: number; total: number }) => void,
-            ): void;
-          }) => void;
-        }): Promise<LanguageModelSession>;
-        function params(): Promise<{ model: string; topK: number; temperature: number }>;
-        function availability(): Promise<'available' | 'unavailable' | 'downloadable'>;
-      }
-    }
+  class LanguageModelSession {
+    prompt(prompt: string): Promise<string>;
+    promptStreaming(prompt: string): ReadableStream<string>;
+    destroy(): void;
+    clone(): Promise<LanguageModelSession>;
+  }
+
+  // LanguageModel is a global object, not part of chrome
+  class LanguageModel {
+    static create(options?: LanguageModelPromptOptions): Promise<LanguageModelSession>;
+    static params(): Promise<{ defaultTemperature: number; defaultTopK: number; maxTopK: number }>;
+    static availability(): Promise<'no' | 'readily' | 'after-download'>;
   }
 }
 
@@ -50,32 +46,26 @@ export async function isAIModelAvailable(): Promise<boolean> {
       return false;
     }
 
-    // Check if the AI Origin Trial API exists at runtime
-    if (!('aiOriginTrial' in chrome)) {
-      console.error('AI Origin Trial API is not available in this browser');
-      return false;
-    }
-
-    // Check if the language model API exists
-    if (!chrome.aiOriginTrial || !chrome.aiOriginTrial.languageModel) {
-      console.error('Language model API is not available in this browser');
+    // Check if the LanguageModel API exists at runtime as global object
+    if (typeof LanguageModel === 'undefined') {
+      console.error('LanguageModel API is not available in this browser');
       return false;
     }
 
     // Check actual availability status
     console.log('Checking model availability status...');
     try {
-      const available = await chrome.aiOriginTrial.languageModel.availability();
+      const available = await LanguageModel.availability();
       console.log('Model availability status:', available);
 
-      if (available !== 'available') {
-        console.error('AI model not yet available, status:', available);
+      if (available === 'no') {
+        console.error('AI model not available, status:', available);
         return false;
       }
 
       // Try to get the model parameters as an additional check
       try {
-        const params = await chrome.aiOriginTrial.languageModel.params();
+        const params = await LanguageModel.params();
         console.log('Model parameters available:', params);
       } catch (paramsError) {
         console.error('Error getting model parameters:', paramsError);
@@ -119,23 +109,18 @@ export async function testAIModel(): Promise<{
     console.log('Running AI model diagnostic test...');
 
     // Check API existence
-    if (!('aiOriginTrial' in chrome)) {
-      diagnosticResult.error = 'AI Origin Trial API is not available in this browser';
-      return diagnosticResult;
-    }
-
-    if (!chrome.aiOriginTrial || !chrome.aiOriginTrial.languageModel) {
-      diagnosticResult.error = 'Language model API is not available in this browser';
+    if (typeof LanguageModel === 'undefined') {
+      diagnosticResult.error = 'LanguageModel API is not available in this browser';
       return diagnosticResult;
     }
 
     let available;
     // Check availability
     try {
-      available = await chrome.aiOriginTrial.languageModel.availability();
+      available = await LanguageModel.availability();
       diagnosticResult.modelStatus = available;
 
-      if (available === 'unavailable') {
+      if (available === 'no') {
         diagnosticResult.error = `Model not available (status: ${available})`;
         return diagnosticResult;
       }
@@ -152,15 +137,20 @@ export async function testAIModel(): Promise<{
       console.log('Creating model session...');
 
       // Get the default parameters
-      const params = await chrome.aiOriginTrial.languageModel.params();
+      const params = await LanguageModel.params();
       console.log('Model params:', params);
 
-      if (available === 'downloadable') {
+      if (available === 'after-download') {
         console.error('Model will take time to download');
       }
 
       // Create with explicit parameters for more reliability
-      session = await chrome.aiOriginTrial.languageModel.create();
+      session = await LanguageModel.create({
+        initialPrompts: [{
+          role: 'system',
+          content: 'You are a helpful assistant.'
+        }]
+      });
 
       console.log('Session created successfully');
     } catch (sessionError) {
@@ -298,7 +288,7 @@ Respond with only valid JSON.
 }
 
 /**
- * Analyze a workflow using the Chrome AI Prompt API
+ * Analyze a workflow using the Chrome Language Model API
  * @param events Array of events in the workflow to analyze
  * @param customPrompt Optional custom prompt to use
  * @returns Promise that resolves to a WorkflowAnalysis object
@@ -317,7 +307,7 @@ export async function analyzeWorkflow(
     // Check model parameters
     let defaults;
     try {
-      defaults = await chrome.aiOriginTrial.languageModel.params();
+      defaults = await LanguageModel.params();
       console.log('Model defaults:', defaults);
     } catch (paramsError) {
       console.error('Error getting model parameters:', paramsError);
@@ -343,18 +333,18 @@ export async function analyzeWorkflow(
 
     // Check model availability
     try {
-      const available = await chrome.aiOriginTrial.languageModel.availability();
+      const available = await LanguageModel.availability();
       modelStatus = available;
       console.log('Model availability status:', available);
 
-      if (available !== 'available') {
+      if (available === 'no') {
         console.error('AI model is not available:', available);
         return {
           summary: 'Error: AI model not available',
           steps: [
             {
               action: 'AI Model Unavailable',
-              intent: `Current status: ${available}. Please ensure you're using Chrome 131+ with the AI Origin Trial enabled.`,
+              intent: `Current status: ${available}. Please ensure you're using Chrome 131+.`,
             },
           ],
           debug: {
@@ -391,13 +381,17 @@ export async function analyzeWorkflow(
     let session;
     try {
       // Get the default parameters first
-      const defaults = await chrome.aiOriginTrial.languageModel.params();
+      const defaults = await LanguageModel.params();
       console.log('Using model parameters:', defaults);
 
-      // Create session with explicit parameters
-      session = await chrome.aiOriginTrial.languageModel.create({
-        temperature: 1, // Lower temperature for more deterministic outputs
-        topK: 3, // Reasonable default for topK
+      // Create session with initialPrompts for system context
+      session = await LanguageModel.create({
+        temperature: 1.0, // Temperature for creative but controlled outputs
+        topK: defaults.defaultTopK || 3, // Use default or reasonable fallback
+        initialPrompts: [{
+          role: 'system',
+          content: 'You are an expert in analyzing user workflows in web applications.'
+        }]
       });
     } catch (sessionError) {
       console.error('Error creating model session:', sessionError);
