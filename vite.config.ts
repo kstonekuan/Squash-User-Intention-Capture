@@ -1,12 +1,25 @@
 import { resolve } from 'node:path';
 import { crx } from '@crxjs/vite-plugin';
 import { defineConfig, loadEnv } from 'vite';
+import dotenv from 'dotenv';
+
+// Load env file with debug output
+dotenv.config();
+
+// Debug environment variables
+const envVars = Object.keys(process.env).filter(key => key.startsWith('VITE_'));
+console.log('Available environment variables:', envVars);
+console.log('VITE_ANTHROPIC_API_KEY available:', !!process.env.VITE_ANTHROPIC_API_KEY);
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd());
   console.log(
     `Building extension in ${mode} mode`,
   );
+  
+  // Debug Vite env loading
+  console.log('Vite env vars:', Object.keys(env).filter(key => key.startsWith('VITE_')));
+  console.log('VITE_ANTHROPIC_API_KEY loaded by Vite:', !!env.VITE_ANTHROPIC_API_KEY);
 
   return {
     plugins: [

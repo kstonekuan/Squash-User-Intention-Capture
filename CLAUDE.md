@@ -1,0 +1,1 @@
+- Always do npm run build and fix any errors after executing

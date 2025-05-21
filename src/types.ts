@@ -5,7 +5,9 @@ export type Message =
   | { kind: 'openOverlay'; tabId: number }
   | { kind: 'export' }
   | { kind: 'mark'; action: 'start' | 'stop' }
-  | { kind: 'analyzeWorkflow' };
+  | { kind: 'analyzeWorkflow' }
+  | { kind: 'setRemoteAI'; enabled: boolean }
+  | { kind: 'testRemoteAI' };
 
 // Port message types
 export type PortMessage =

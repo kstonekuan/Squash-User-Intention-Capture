@@ -103,6 +103,17 @@
     .toolbar {
       display: flex;
       gap: 8px;
+      align-items: center;
+    }
+    
+    .model-label {
+      font-size: 11px;
+      background-color: var(--section-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--text-color);
+      opacity: 0.8;
+      margin-right: 6px;
     }
 
     .content {
@@ -423,6 +434,7 @@
     <div class="header">
       <h1>Squash: Intent Capture</h1>
       <div class="toolbar">
+        <span id="aiModelLabel" class="model-label">Using: Chrome AI</span>
         <button id="exportBtn" class="btn">Export</button>
         <button id="clearBtn" class="btn">Clear</button>
       </div>
@@ -447,6 +459,22 @@
       <div id="debugContent" class="tab-content">
         <div class="debug-container">
           <div class="card">
+            <h2>AI Model Selection</h2>
+            <p>
+              <label>
+                <input type="radio" name="aiModel" id="localAiRadio" checked>
+                Use Chrome Built-in AI (requires Chrome 131+)
+              </label>
+            </p>
+            <p>
+              <label>
+                <input type="radio" name="aiModel" id="remoteAiRadio">
+                Use Anthropic Claude API (from .env file)
+              </label>
+            </p>
+          </div>
+        
+          <div class="card">
             <h2>AI Model Availability</h2>
             <p>Current status: <span id="status" class="status">Checking...</span></p>
             <button id="checkBtn" class="btn btn-secondary">Check Again</button>
@@ -467,7 +495,7 @@
           <div class="card">
             <h2>Test Results</h2>
             <pre id="testResults">No tests run yet</pre>
-            <button id="simpleDiagnosticBtn" class="btn btn-primary">Run Simple Diagnostic Test</button>
+            <button id="simpleDiagnosticBtn" class="btn btn-primary">Run Local Diagnostic Test</button>
           </div>
         </div>
       </div>

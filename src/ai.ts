@@ -146,10 +146,12 @@ export async function testAIModel(): Promise<{
 
       // Create with explicit parameters for more reliability
       session = await LanguageModel.create({
-        initialPrompts: [{
-          role: 'system',
-          content: 'You are a helpful assistant.'
-        }]
+        initialPrompts: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant.',
+          },
+        ],
       });
 
       console.log('Session created successfully');
@@ -388,10 +390,12 @@ export async function analyzeWorkflow(
       session = await LanguageModel.create({
         temperature: 1.0, // Temperature for creative but controlled outputs
         topK: defaults.defaultTopK || 3, // Use default or reasonable fallback
-        initialPrompts: [{
-          role: 'system',
-          content: 'You are an expert in analyzing user workflows in web applications.'
-        }]
+        initialPrompts: [
+          {
+            role: 'system',
+            content: 'You are an expert in analyzing user workflows in web applications.',
+          },
+        ],
       });
     } catch (sessionError) {
       console.error('Error creating model session:', sessionError);

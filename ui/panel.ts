@@ -1,4 +1,5 @@
 import { testAIModel } from '../src/ai';
+import { isRemoteAIEnabled } from '../src/remote-ai';
 import type { PortMessage, RawEvent, WorkflowAnalysis } from '../src/types';
 
 // Elements
@@ -7,6 +8,7 @@ const exportBtn = document.getElementById('exportBtn') as HTMLButtonElement;
 const clearBtn = document.getElementById('clearBtn') as HTMLButtonElement;
 const startMarkBtn = document.getElementById('startMarkBtn') as HTMLButtonElement;
 const stopMarkBtn = document.getElementById('stopMarkBtn') as HTMLButtonElement;
+const aiModelLabel = document.getElementById('aiModelLabel') as HTMLSpanElement;
 const eventsTab = document.getElementById('eventsTab') as HTMLDivElement;
 const analysisTab = document.getElementById('analysisTab') as HTMLDivElement;
 const debugTab = document.getElementById('debugTab') as HTMLDivElement;
@@ -393,6 +395,8 @@ debugTab.addEventListener('click', () => setActiveTab('debug'));
 // Debug tab functionality
 // Check environment
 function checkEnvironment() {
+  // Check radio buttons state based on current setting
+  loadAISettings();
 
   // Check if LanguageModel is available
   if (typeof LanguageModel !== 'undefined') {
@@ -410,6 +414,47 @@ function checkEnvironment() {
     langModelStatusEl.textContent = '✅ Yes';
   } else {
     langModelStatusEl.textContent = '❌ No';
+  }
+}
+
+// Load AI settings from storage
+async function loadAISettings() {
+  chrome.storage.local.get(['use_remote_ai'], (result) => {
+    const useRemoteAI = result.use_remote_ai === true;
+    
+    // Set radio buttons
+    (document.getElementById('remoteAiRadio') as HTMLInputElement).checked = useRemoteAI;
+    (document.getElementById('localAiRadio') as HTMLInputElement).checked = !useRemoteAI;
+  });
+}
+
+// Handle AI model selection change
+function handleAIModelChange() {
+  const useRemoteAI = (document.getElementById('remoteAiRadio') as HTMLInputElement).checked;
+  
+  // Save setting to storage and notify service worker
+  try {
+    chrome.runtime.sendMessage({
+      kind: 'setRemoteAI',
+      enabled: useRemoteAI
+    }, (response) => {
+      if (response && response.success) {
+        console.log('AI model switched successfully');
+        updateAIModelLabel();
+      } else {
+        // Even without a response, try to update the label since the storage should be updated
+        console.log('No response from service worker, but continuing anyway');
+        updateAIModelLabel();
+      }
+    });
+    
+    // Update storage directly as well for redundancy
+    chrome.storage.local.set({ 'use_remote_ai': useRemoteAI }, () => {
+      console.log('AI model setting saved to storage');
+      updateAIModelLabel();
+    });
+  } catch (error) {
+    console.error('Error in handleAIModelChange:', error);
   }
 }
 
@@ -452,6 +497,8 @@ async function checkModelAvailability() {
 // Add event listeners for debug tab
 checkBtn.addEventListener('click', checkModelAvailability);
 simpleDiagnosticBtn.addEventListener('click', runDiagnosticTest);
+document.getElementById('localAiRadio')?.addEventListener('change', handleAIModelChange);
+document.getElementById('remoteAiRadio')?.addEventListener('change', handleAIModelChange);
 
 // Simple diagnostic test function
 async function runDiagnosticTest() {
@@ -490,3 +537,40 @@ toggleDebugBtn.addEventListener('click', () => {
     }
   }
 });
+
+// Update AI model label based on current setting
+async function updateAIModelLabel() {
+  try {
+    const useRemoteAI = await isRemoteAIEnabled();
+    aiModelLabel.textContent = useRemoteAI ? 'Using: Claude AI' : 'Using: Chrome AI';
+    
+    // Also update radio buttons if they exist
+    const localRadio = document.getElementById('localAiRadio') as HTMLInputElement | null;
+    const remoteRadio = document.getElementById('remoteAiRadio') as HTMLInputElement | null;
+    
+    if (localRadio && remoteRadio) {
+      localRadio.checked = !useRemoteAI;
+      remoteRadio.checked = useRemoteAI;
+    }
+  } catch (error) {
+    console.error('Error updating AI model label:', error);
+    aiModelLabel.textContent = 'Using: Unknown';
+  }
+}
+
+// Initialize when document is loaded
+(async function init() {
+  await updateAIModelLabel();
+  
+  // Listen for storage changes to update model label
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.use_remote_ai) {
+      updateAIModelLabel();
+    }
+  });
+  
+  // When debug tab is clicked, make sure radio buttons are updated
+  debugTab.addEventListener('click', async () => {
+    await updateAIModelLabel();
+  });
+})();

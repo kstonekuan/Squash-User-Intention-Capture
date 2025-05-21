@@ -1,6 +1,11 @@
-import { analyzeWorkflow, isAIModelAvailable } from './ai';
+import { analyzeWorkflow as analyzeWorkflowLocal, isAIModelAvailable } from './ai';
 import { saveChunk } from './db';
 import { exportData } from './export';
+import {
+  analyzeWorkflow as analyzeWorkflowRemote,
+  isRemoteAIConfigured,
+  isRemoteAIEnabled,
+} from './remote-ai';
 import type { Message, PortMessage, RawEvent, WorkflowAnalysis, WorkflowMarkers } from './types';
 
 const MAX_EVENTS = 10_000;
@@ -43,7 +48,7 @@ chrome.tabs.onRemoved.addListener(() => {
 });
 
 // Receive batched events from content script
-chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(async (msg: Message, _sender, sendResponse) => {
   if (msg.kind === 'evtBatch' && msg.evts) push(msg.evts);
 
   if (msg.kind === 'nav' && msg.url) {
@@ -64,7 +69,34 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
     handleWorkflowAnalysis();
   }
 
-  sendResponse();
+  // Handle remote AI settings
+  if (msg.kind === 'setRemoteAI') {
+    try {
+      const { setRemoteAIEnabled } = await import('./remote-ai');
+      await setRemoteAIEnabled(msg.enabled);
+      // Make sure to return true so Chrome knows we'll call sendResponse later
+      sendResponse({ success: true });
+    } catch (error) {
+      console.error('Error setting remote AI:', error);
+      sendResponse({ success: false, error: String(error) });
+    }
+    return true; // Keep the message channel open for async response
+  }
+
+  // Handle remote AI test
+  if (msg.kind === 'testRemoteAI') {
+    try {
+      const { testRemoteAI } = await import('./remote-ai');
+      const result = await testRemoteAI();
+      sendResponse({ success: true, result });
+    } catch (error) {
+      console.error('Error testing remote AI:', error);
+      sendResponse({ success: false, error: String(error) });
+    }
+    return true; // Keep the message channel open for async response
+  }
+
+  sendResponse({ success: true });
   return true; // Keep the message channel open for async responses
 });
 
@@ -153,6 +185,19 @@ async function handleWorkflowAnalysis(customPrompt?: string): Promise<void> {
     return;
   }
 
+  // Check if remote AI is enabled
+  const useRemoteAI = await isRemoteAIEnabled();
+  console.log('Using remote AI:', useRemoteAI);
+
+  if (useRemoteAI) {
+    await handleRemoteAnalysis(customPrompt);
+  } else {
+    await handleLocalAnalysis(customPrompt);
+  }
+}
+
+// Handle local (Chrome built-in) AI analysis
+async function handleLocalAnalysis(customPrompt?: string): Promise<void> {
   // Check if AI model is available
   const modelAvailable = await isAIModelAvailable();
   if (!modelAvailable) {
@@ -160,42 +205,74 @@ async function handleWorkflowAnalysis(customPrompt?: string): Promise<void> {
       summary: 'AI Model Not Available',
       steps: [
         {
-          action: 'Error: AI Model not available in this browser',
-          intent: 'Please ensure you are using Chrome 131+ with the AI Origin Trial enabled',
+          action: 'Error: Chrome AI Model not available in this browser',
+          intent:
+            'Please ensure you are using Chrome 131+ with the AI Origin Trial enabled, or switch to remote AI in the Debug panel',
         },
       ],
     };
 
     // Broadcast the error analysis to all connected ports
-    ports.forEach(port => {
-      try {
-        port.postMessage({ analysis: errorAnalysis } as PortMessage);
-      } catch (error) {
-        console.error('Error posting analysis message to port:', error);
-      }
-    });
-
+    broadcastAnalysis(errorAnalysis);
     return;
   }
 
   try {
     // Extract the events between start and stop markers
-    const workflowEvents = ring.slice(currentWorkflow.startIndex, currentWorkflow.endIndex + 1);
+    const workflowEvents = ring.slice(currentWorkflow!.startIndex, currentWorkflow!.endIndex! + 1);
 
-    // Analyze the workflow
-    const analysis = await analyzeWorkflow(workflowEvents, customPrompt);
+    // Analyze the workflow using local AI
+    const analysis = await analyzeWorkflowLocal(workflowEvents, customPrompt);
 
     // Broadcast the analysis to all connected ports
-    ports.forEach(port => {
-      try {
-        port.postMessage({ analysis } as PortMessage);
-      } catch (error) {
-        console.error('Error posting analysis message to port:', error);
-      }
-    });
+    broadcastAnalysis(analysis);
   } catch (error) {
-    console.error('Error during workflow analysis:', error);
+    console.error('Error during local workflow analysis:', error);
   }
+}
+
+// Handle remote (Claude API) AI analysis
+async function handleRemoteAnalysis(customPrompt?: string): Promise<void> {
+  // Check if remote AI is configured
+  const isConfigured = await isRemoteAIConfigured();
+  if (!isConfigured) {
+    const errorAnalysis: WorkflowAnalysis = {
+      summary: 'Claude API Not Configured',
+      steps: [
+        {
+          action: 'Error: Claude API key not configured',
+          intent: 'Please add VITE_ANTHROPIC_API_KEY to your .env file',
+        },
+      ],
+    };
+
+    broadcastAnalysis(errorAnalysis);
+    return;
+  }
+
+  try {
+    // Extract the events between start and stop markers
+    const workflowEvents = ring.slice(currentWorkflow!.startIndex, currentWorkflow!.endIndex! + 1);
+
+    // Analyze the workflow using remote AI
+    const analysis = await analyzeWorkflowRemote(workflowEvents, customPrompt);
+
+    // Broadcast the analysis to all connected ports
+    broadcastAnalysis(analysis);
+  } catch (error) {
+    console.error('Error during remote workflow analysis:', error);
+  }
+}
+
+// Helper to broadcast analysis to all connected ports
+function broadcastAnalysis(analysis: WorkflowAnalysis): void {
+  ports.forEach(port => {
+    try {
+      port.postMessage({ analysis } as PortMessage);
+    } catch (error) {
+      console.error('Error posting analysis message to port:', error);
+    }
+  });
 }
 
 // Periodically persist events to IndexedDB
