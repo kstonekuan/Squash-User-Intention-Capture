@@ -189,13 +189,13 @@ You are an expert in analyzing user workflows in web applications. I'll provide 
 
 Your analysis should be structured as follows:
 {
-  "summary": "Brief description of the overall workflow purpose - generalizable to similar workflows",
   "steps": [
     {
       "action": "What the user did",
       "intent": "Why they did it / what they were trying to accomplish"
     }
   ],
+  "summary": "Brief description of the overall workflow purpose - generalizable to similar workflows",
   "suggestions": [
     "E.g. What to look out for when executing this workflow",
     "E.g. How to optimize the workflow",
