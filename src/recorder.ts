@@ -1,19 +1,9 @@
-import type { Message } from './types';
+import type { Message, RawEvent } from './types';
 
 // Configuration
 const BATCH_MS = 500;
 const BATCH_MAX = 25;
-let batch: any[] = [];
-
-// Event types we want to capture
-type UserEvent = {
-  type: string;
-  target: string;
-  action: string;
-  value?: string;
-  t: number;
-  url: string;
-};
+let batch: RawEvent[] = [];
 
 // Utility to get a good element descriptor for logging
 function getElementDescription(el: HTMLElement): string {
@@ -108,17 +98,14 @@ function recordEvent(type: string, event: Event) {
       action = 'submit';
     }
 
-    const userEvent: UserEvent = {
+    const userEvent: RawEvent = {
       type: 'user',
       target: getElementDescription(target),
       action,
       t: Date.now(),
       url: window.location.href,
+      ...(value !== undefined && { value }),
     };
-
-    if (value !== undefined) {
-      userEvent.value = value;
-    }
 
     batch.push(userEvent);
 
@@ -146,11 +133,15 @@ document.addEventListener(
       if (!target.tagName || target.tagName === 'BODY' || target.tagName === 'HTML') {
         return;
       }
-      
+
       // Check if this is an anchor link with a hash
       if (target.tagName === 'A' && target instanceof HTMLAnchorElement) {
         const url = target.href;
-        if (url && url.includes('#') && !window.location.href.endsWith(url.substring(url.indexOf('#')))) {
+        if (
+          url &&
+          url.includes('#') &&
+          !window.location.href.endsWith(url.substring(url.indexOf('#')))
+        ) {
           // This is a hash link that's not already in the current URL
           batch.push({
             type: 'hashchange',
@@ -165,7 +156,7 @@ document.addEventListener(
           }
         }
       }
-      
+
       recordEvent('click', e);
     } catch (error) {
       console.error('Error processing click event:', error);
@@ -230,23 +221,23 @@ document.addEventListener(
     if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
       return;
     }
-    
+
     // Skip password fields
     if (e.target instanceof HTMLInputElement && e.target.type === 'password') {
       return;
     }
-    
+
     // Debounce input events
     if (inputTimeout) {
       window.clearTimeout(inputTimeout);
     }
-    
+
     inputTimeout = window.setTimeout(() => {
       recordEvent('input-debounced', e);
       inputTimeout = null;
     }, INPUT_DEBOUNCE_MS);
   },
-  true
+  true,
 );
 
 // Record change events (for dropdowns, etc.)
@@ -259,13 +250,13 @@ document.addEventListener(
       const selectedOption = select.options[select.selectedIndex];
       const value = select.value;
       const text = selectedOption ? selectedOption.text : '';
-      
+
       // Create a custom event with additional data
       const syntheticEvent = new Event('change');
       Object.defineProperty(syntheticEvent, 'target', { value: select });
-      
+
       // Store both the value and display text
-      const userEvent: UserEvent = {
+      const userEvent: RawEvent = {
         type: 'user',
         target: getElementDescription(select),
         action: 'select-option',
@@ -273,9 +264,9 @@ document.addEventListener(
         t: Date.now(),
         url: window.location.href,
       };
-      
+
       batch.push(userEvent);
-      
+
       if (batch.length >= BATCH_MAX) {
         flush();
       }
@@ -471,8 +462,6 @@ window.addEventListener('hashchange', e => {
     flush();
   }
 });
-
-// Page load and DOMContentLoaded event listeners removed as requested
 
 // Observe AJAX Requests using XHR
 const originalXHROpen = XMLHttpRequest.prototype.open;

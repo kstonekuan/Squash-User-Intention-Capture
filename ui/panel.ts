@@ -34,7 +34,6 @@ const rawResponse = document.getElementById('rawResponse') as HTMLPreElement;
 // Debug tab elements
 const statusEl = document.getElementById('status') as HTMLSpanElement;
 const checkBtn = document.getElementById('checkBtn') as HTMLButtonElement;
-const chromeStatusEl = document.getElementById('chromeStatus') as HTMLSpanElement;
 const aiTrialStatusEl = document.getElementById('aiTrialStatus') as HTMLSpanElement;
 const langModelStatusEl = document.getElementById('langModelStatus') as HTMLSpanElement;
 const paramsEl = document.getElementById('params') as HTMLSpanElement;
@@ -44,9 +43,6 @@ const simpleDiagnosticBtn = document.getElementById('simpleDiagnosticBtn') as HT
 
 // Connect to background service worker
 const port = chrome.runtime.connect({ name: 'log' });
-
-// Recording state
-let _isRecording = false;
 
 // Auto-scroll behavior
 let follow = true;
@@ -136,7 +132,7 @@ function format(event: RawEvent): string {
 
   // Keyboard events
   if (event.type === 'key') {
-    const modifiers = [];
+    const modifiers: string[] = [];
     if (event.modifiers.ctrl) modifiers.push('Ctrl');
     if (event.modifiers.alt) modifiers.push('Alt');
     if (event.modifiers.shift) modifiers.push('Shift');
@@ -342,7 +338,6 @@ function setActiveTab(tabId: 'events' | 'analysis' | 'debug'): void {
 
 // Start recording workflow
 function startRecording(): void {
-  _isRecording = true;
   startMarkBtn.disabled = true;
   stopMarkBtn.disabled = false;
 
@@ -351,7 +346,6 @@ function startRecording(): void {
 
 // Stop recording workflow
 function stopRecording(): void {
-  _isRecording = false;
   startMarkBtn.disabled = false;
   stopMarkBtn.disabled = true;
 

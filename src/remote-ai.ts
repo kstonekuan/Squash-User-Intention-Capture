@@ -7,16 +7,11 @@ const CLAUDE_MODEL = 'claude-3-7-sonnet-latest';
 // Get API key from environment variables - must use VITE_ prefix and import.meta.env
 const CLAUDE_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || '';
 
-// Debug environment variable access
-console.log('Environment variables available in import.meta.env:', Object.keys(import.meta.env).filter(key => key.startsWith('VITE_')));
-console.log('VITE_ANTHROPIC_API_KEY available:', typeof import.meta.env.VITE_ANTHROPIC_API_KEY);
-console.log('Claude API key configured:', !!CLAUDE_API_KEY);
-
 // If the key is not available, log a helpful message
 if (!CLAUDE_API_KEY) {
   console.warn(
     'VITE_ANTHROPIC_API_KEY not found in environment variables. ' +
-    'Make sure you have a .env file in the project root with VITE_ANTHROPIC_API_KEY=your_api_key'
+      'Make sure you have a .env file in the project root with VITE_ANTHROPIC_API_KEY=your_api_key',
   );
 }
 
@@ -94,7 +89,8 @@ export async function testRemoteAI(): Promise<{
     // Check if API key is configured
     const apiKey = getApiKey();
     if (!apiKey) {
-      testResult.error = 'Claude API key not configured. Please add VITE_ANTHROPIC_API_KEY to your .env file.'
+      testResult.error =
+        'Claude API key not configured. Please add VITE_ANTHROPIC_API_KEY to your .env file.';
       return testResult;
     }
 
@@ -277,8 +273,9 @@ export async function analyzeWorkflow(
         ],
         debug: {
           prompt,
-          error: 'Claude API key not configured. Please add VITE_ANTHROPIC_API_KEY to your .env file.',
-          modelStatus: 'unconfigured',
+          error:
+            'Claude API key not configured. Please add VITE_ANTHROPIC_API_KEY to your .env file.',
+          modelStatus: 'not configured',
         },
       };
     }

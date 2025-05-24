@@ -20,14 +20,14 @@ let lastPersistedIndex = 0;
 let currentWorkflow: WorkflowMarkers | null = null;
 
 // Tab management
-chrome.tabs.onActivated.addListener((activeInfo) => {
+chrome.tabs.onActivated.addListener(activeInfo => {
   // Get the tab details to include the title
-  chrome.tabs.get(activeInfo.tabId, (tab) => {
+  chrome.tabs.get(activeInfo.tabId, tab => {
     const event: RawEvent = {
       type: 'tab',
       action: 'activated',
       t: Date.now(),
-      title: tab.title || 'Untitled Tab'
+      title: tab.title || 'Untitled Tab',
     };
     push([event]);
   });
