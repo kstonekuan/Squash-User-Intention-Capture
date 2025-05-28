@@ -5,7 +5,7 @@ import type { ClaudeTool, ToolImplementation } from './types';
  * Schema for the think tool
  */
 const ThinkSchema = z.object({
-  thinking: z.string().describe('Your internal reasoning and thought process')
+  thinking: z.string().describe('Your internal reasoning and thought process'),
 });
 
 export type ThinkResponse = z.infer<typeof ThinkSchema>;
@@ -15,8 +15,9 @@ export type ThinkResponse = z.infer<typeof ThinkSchema>;
  */
 export class ThinkTool implements ToolImplementation {
   public readonly name = 'think';
-  public readonly description = 'Use this tool to show your reasoning and thought process before providing a response.';
-  
+  public readonly description =
+    'Use this tool to show your reasoning and thought process before providing a response.';
+
   createTool(): ClaudeTool {
     return {
       name: this.name,
@@ -26,25 +27,25 @@ export class ThinkTool implements ToolImplementation {
         properties: {
           thinking: {
             type: 'string',
-            description: 'Your internal reasoning and thought process'
-          }
+            description: 'Your internal reasoning and thought process',
+          },
         },
-        required: ['thinking']
-      }
+        required: ['thinking'],
+      },
     };
   }
-  
+
   /**
    * Validate a response against this tool's schema
    */
   validateResponse(input: unknown): ThinkResponse {
     const result = ThinkSchema.safeParse(input);
-    
+
     if (!result.success) {
       console.error('Think tool validation failed:', result.error);
       throw new Error(`Response did not conform to expected schema: ${result.error.message}`);
     }
-    
+
     return result.data;
   }
 }

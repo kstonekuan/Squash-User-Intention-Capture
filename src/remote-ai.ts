@@ -1,22 +1,31 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
+import { type ClaudeTool, createJsonTool } from './tools';
 import type { RawEvent, WorkflowAnalysis } from './types';
-import { createJsonTool, type ClaudeTool } from './tools';
 
 // Zod schema for workflow analysis
 const WorkflowAnalysisSchema = z.object({
-  summary: z.string().describe('Brief description of the overall workflow purpose - generalizable to similar workflows'),
-  steps: z.array(
-    z.object({
-      action: z.string().describe('What the user did'),
-      intent: z.string().describe('Why they did it / what they were trying to accomplish')
-    })
-  ).describe('Step-by-step breakdown of the workflow'),
-  suggestions: z.array(
-    z.string().describe('Suggestions for optimization, what to look out for, or potential pitfalls')
-  ).describe('Suggestions for executing or optimizing this workflow')
+  summary: z
+    .string()
+    .describe(
+      'Brief description of the overall workflow purpose - generalizable to similar workflows',
+    ),
+  steps: z
+    .array(
+      z.object({
+        action: z.string().describe('What the user did'),
+        intent: z.string().describe('Why they did it / what they were trying to accomplish'),
+      }),
+    )
+    .describe('Step-by-step breakdown of the workflow'),
+  suggestions: z
+    .array(
+      z
+        .string()
+        .describe('Suggestions for optimization, what to look out for, or potential pitfalls'),
+    )
+    .describe('Suggestions for executing or optimizing this workflow'),
 });
-
 
 // Default Claude model
 const CLAUDE_MODEL = 'claude-opus-4-20250514';
@@ -113,11 +122,7 @@ export async function testRemoteAI(): Promise<{
 
     // Try a simple prompt - for testing, we'll create a minimal prompt
     const testPrompt = 'Analyze this simple test workflow: User opens a webpage.';
-    const result = await callClaudeWithSchema(
-      testPrompt, 
-      WorkflowAnalysisSchema, 
-      apiKey
-    );
+    const result = await callClaudeWithSchema(testPrompt, WorkflowAnalysisSchema, apiKey);
 
     if (!result) {
       testResult.error = 'Received empty response from Claude API';
@@ -213,7 +218,6 @@ Use the json tool to provide your structured analysis.
 `;
 }
 
-
 /**
  * Generic function to call Claude API with multiple tools
  * @param prompt The prompt to send to Claude
@@ -226,7 +230,7 @@ export async function callClaudeWithTools(
   prompt: string,
   tools: ClaudeTool[],
   apiKey: string,
-  toolChoice: Anthropic.MessageCreateParams['tool_choice'] = { type: 'auto' }
+  toolChoice: Anthropic.MessageCreateParams['tool_choice'] = { type: 'auto' },
 ): Promise<Anthropic.Messages.ToolUseBlock> {
   try {
     const anthropic = new Anthropic({
@@ -240,7 +244,7 @@ export async function callClaudeWithTools(
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
       tools,
-      tool_choice: toolChoice
+      tool_choice: toolChoice,
     });
 
     // Extract tool use from the response
@@ -252,28 +256,27 @@ export async function callClaudeWithTools(
     return toolUse;
   } catch (error) {
     console.error('Error calling Claude API:', error);
-    
+
     // Handle specific Anthropic SDK errors
     if (error instanceof Anthropic.APIError) {
       throw new Error(`Anthropic API error: ${error.status} - ${error.message}`);
     }
-    
+
     if (error instanceof Anthropic.AuthenticationError) {
       throw new Error('Invalid API key. Please check your Anthropic API key.');
     }
-    
+
     if (error instanceof Anthropic.RateLimitError) {
       throw new Error('Rate limit exceeded. Please try again later.');
     }
-    
+
     if (error instanceof Anthropic.BadRequestError) {
       throw new Error(`Bad request: ${error.message}`);
     }
-    
+
     throw error;
   }
 }
-
 
 /**
  * Generic function to call Claude API with structured response using any Zod schema
@@ -283,34 +286,31 @@ export async function callClaudeWithTools(
  * @returns Promise that resolves to the structured response
  */
 export async function callClaudeWithSchema<T extends z.ZodTypeAny>(
-  prompt: string, 
-  schema: T, 
-  apiKey: string
+  prompt: string,
+  schema: T,
+  apiKey: string,
 ): Promise<z.infer<T>> {
   try {
     const jsonTool = createJsonTool(schema);
-    const toolUse = await callClaudeWithTools(
-      prompt, 
-      [jsonTool.createTool()], 
-      apiKey, 
-      { type: 'tool', name: jsonTool.name }
-    );
+    const toolUse = await callClaudeWithTools(prompt, [jsonTool.createTool()], apiKey, {
+      type: 'tool',
+      name: jsonTool.name,
+    });
 
     // Use the JSON tool's validation method
     return jsonTool.validateResponse(toolUse.input);
   } catch (error) {
     console.error('Error calling Claude API:', error);
-    
+
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {
       throw new Error(`Invalid response structure: ${error.message}`);
     }
-    
+
     // Re-throw API errors from callClaudeWithTools
     throw error;
   }
 }
-
 
 /**
  * Analyze a workflow using the Claude API
@@ -352,11 +352,7 @@ export async function analyzeWorkflow(
     console.log('Sending prompt to Claude API:', `${prompt.substring(0, 100)}...`);
 
     try {
-      const result = await callClaudeWithSchema(
-        prompt, 
-        WorkflowAnalysisSchema, 
-        apiKey
-      );
+      const result = await callClaudeWithSchema(prompt, WorkflowAnalysisSchema, apiKey);
       console.log('Received structured response from Claude API:', result.summary);
 
       if (!result) {

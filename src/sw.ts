@@ -121,14 +121,14 @@ function push(events: RawEvent[]): void {
   if (ring.length > MAX_EVENTS) ring = ring.slice(-MAX_EVENTS);
 
   // Broadcast to all connected ports
-  ports.forEach(port => {
+  for (const port of ports) {
     try {
       port.postMessage({ delta: events } as PortMessage);
     } catch (error) {
       console.error('Error posting message to port:', error);
       ports.delete(port);
     }
-  });
+  }
 }
 
 // Stream to side-panel
@@ -156,7 +156,9 @@ chrome.action.onClicked.addListener(tab => {
 
       // Use cast to any to bypass TypeScript error with the open method
       // which exists in the actual Chrome API but might be missing in type definitions
-      (chrome.sidePanel as any).open({ windowId: tab.windowId });
+      (chrome.sidePanel as unknown as { open: (options: { windowId: number }) => void }).open({
+        windowId: tab.windowId,
+      });
     } catch (error) {
       console.error('Error with side panel API:', error);
     }
@@ -234,7 +236,10 @@ async function handleLocalAnalysis(customPrompt?: string): Promise<void> {
 
   try {
     // Extract the events between start and stop markers
-    const workflowEvents = ring.slice(currentWorkflow!.startIndex, currentWorkflow!.endIndex! + 1);
+    if (!currentWorkflow?.startIndex || !currentWorkflow?.endIndex) {
+      throw new Error('Invalid workflow indices');
+    }
+    const workflowEvents = ring.slice(currentWorkflow.startIndex, currentWorkflow.endIndex + 1);
 
     // Analyze the workflow using local AI
     const analysis = await analyzeWorkflowLocal(workflowEvents, customPrompt);
@@ -267,7 +272,10 @@ async function handleRemoteAnalysis(customPrompt?: string): Promise<void> {
 
   try {
     // Extract the events between start and stop markers
-    const workflowEvents = ring.slice(currentWorkflow!.startIndex, currentWorkflow!.endIndex! + 1);
+    if (!currentWorkflow?.startIndex || !currentWorkflow?.endIndex) {
+      throw new Error('Invalid workflow indices');
+    }
+    const workflowEvents = ring.slice(currentWorkflow.startIndex, currentWorkflow.endIndex + 1);
 
     // Analyze the workflow using remote AI
     const analysis = await analyzeWorkflowRemote(workflowEvents, customPrompt);
@@ -281,13 +289,13 @@ async function handleRemoteAnalysis(customPrompt?: string): Promise<void> {
 
 // Helper to broadcast analysis to all connected ports
 function broadcastAnalysis(analysis: WorkflowAnalysis): void {
-  ports.forEach(port => {
+  for (const port of ports) {
     try {
       port.postMessage({ analysis } as PortMessage);
     } catch (error) {
       console.error('Error posting analysis message to port:', error);
     }
-  });
+  }
 }
 
 // Periodically persist events to IndexedDB

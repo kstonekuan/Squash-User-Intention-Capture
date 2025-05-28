@@ -137,11 +137,7 @@ document.addEventListener(
       // Check if this is an anchor link with a hash
       if (target.tagName === 'A' && target instanceof HTMLAnchorElement) {
         const url = target.href;
-        if (
-          url &&
-          url.includes('#') &&
-          !window.location.href.endsWith(url.substring(url.indexOf('#')))
-        ) {
+        if (url?.includes('#') && !window.location.href.endsWith(url.substring(url.indexOf('#')))) {
           // This is a hash link that's not already in the current URL
           batch.push({
             type: 'hashchange',
@@ -182,7 +178,7 @@ document.addEventListener(
       recordEvent('submit', e);
 
       // Record the values of form inputs at submission time
-      formElements.forEach(element => {
+      for (const element of formElements) {
         if (
           element instanceof HTMLInputElement ||
           element instanceof HTMLSelectElement ||
@@ -193,7 +189,7 @@ document.addEventListener(
             element instanceof HTMLInputElement &&
             (element.type === 'button' || element.type === 'submit' || element.type === 'hidden')
           ) {
-            return;
+            continue;
           }
 
           // Create a synthetic event with the target as the input element
@@ -203,7 +199,7 @@ document.addEventListener(
           // Record the input value at form submission time
           recordEvent('input-submit', syntheticEvent);
         }
-      });
+      }
     } catch (error) {
       console.error('Error recording form submission:', error);
     }
@@ -463,6 +459,12 @@ window.addEventListener('hashchange', e => {
   }
 });
 
+// Extended XMLHttpRequest interface for tracking
+interface ExtendedXMLHttpRequest extends XMLHttpRequest {
+  _workflowMethod?: string;
+  _workflowUrl?: string | URL;
+}
+
 // Observe AJAX Requests using XHR
 const originalXHROpen = XMLHttpRequest.prototype.open;
 const originalXHRSend = XMLHttpRequest.prototype.send;
@@ -470,23 +472,24 @@ const originalXHRSend = XMLHttpRequest.prototype.send;
 XMLHttpRequest.prototype.open = function (
   method: string,
   url: string | URL,
-  _async?: boolean,
-  _username?: string | null,
-  _password?: string | null,
+  async?: boolean,
+  username?: string | null,
+  password?: string | null,
 ) {
   // Store method and URL for later use in send
-  (this as any)._workflowMethod = method;
-  (this as any)._workflowUrl = url;
+  (this as ExtendedXMLHttpRequest)._workflowMethod = method;
+  (this as ExtendedXMLHttpRequest)._workflowUrl = url;
   // Simply call the original with all the arguments
-  return originalXHROpen.apply(this, arguments as any);
+  return originalXHROpen.call(this, method, url, async ?? true, username, password);
 };
 
-XMLHttpRequest.prototype.send = function (body) {
+XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyInit | null) {
   // Log the XHR request
+  const extendedThis = this as ExtendedXMLHttpRequest;
   batch.push({
     type: 'xhr',
-    method: (this as any)._workflowMethod,
-    url: (this as any)._workflowUrl,
+    method: extendedThis._workflowMethod ?? 'GET',
+    url: extendedThis._workflowUrl ? extendedThis._workflowUrl.toString() : '',
     // Don't log the actual request body for privacy reasons
     t: Date.now(),
     pageUrl: window.location.href,
@@ -496,7 +499,7 @@ XMLHttpRequest.prototype.send = function (body) {
     flush();
   }
 
-  return originalXHRSend.apply(this, [body] as any);
+  return originalXHRSend.call(this, body);
 };
 
 // Observe fetch requests

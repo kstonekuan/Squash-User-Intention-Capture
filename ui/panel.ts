@@ -259,7 +259,7 @@ function displayAnalysis(analysis: WorkflowAnalysis): void {
 
   // Update steps
   workflowSteps.innerHTML = '';
-  analysis.steps.forEach(step => {
+  for (const step of analysis.steps) {
     const stepEl = document.createElement('div');
     stepEl.className = 'analysis-step';
 
@@ -272,16 +272,16 @@ function displayAnalysis(analysis: WorkflowAnalysis): void {
     stepEl.appendChild(actionEl);
     stepEl.appendChild(intentEl);
     workflowSteps.appendChild(stepEl);
-  });
+  }
 
   // Update suggestions
   workflowSuggestions.innerHTML = '';
   if (analysis.suggestions && analysis.suggestions.length > 0) {
-    analysis.suggestions.forEach(suggestion => {
+    for (const suggestion of analysis.suggestions) {
       const li = document.createElement('li');
       li.textContent = suggestion;
       workflowSuggestions.appendChild(li);
-    });
+    }
   } else {
     const li = document.createElement('li');
     li.textContent = 'No suggestions available';
@@ -364,24 +364,24 @@ function retryAnalysis(): void {
   showAnalysisLoading();
 
   // Send retry message to service worker
-  chrome.runtime.sendMessage({ kind: 'retryAnalysis' }, (response) => {
+  chrome.runtime.sendMessage({ kind: 'retryAnalysis' }, response => {
     if (!response || !response.success) {
       // Hide loading and show error
       hideAnalysisLoading();
-      
+
       const errorMessage = response?.error || 'Unknown error retrying analysis';
       displayAnalysis({
         summary: 'Error Retrying Analysis',
         steps: [
           {
             action: 'Error',
-            intent: errorMessage
-          }
+            intent: errorMessage,
+          },
         ],
         debug: {
           error: errorMessage,
           modelStatus: 'error',
-        }
+        },
       });
     }
     // On success, we'll get a message via port with the analysis results
@@ -446,9 +446,9 @@ function checkEnvironment() {
 
 // Load AI settings from storage
 async function loadAISettings() {
-  chrome.storage.local.get(['use_remote_ai'], (result) => {
+  chrome.storage.local.get(['use_remote_ai'], result => {
     const useRemoteAI = result.use_remote_ai === true;
-    
+
     // Set radio buttons
     (document.getElementById('remoteAiRadio') as HTMLInputElement).checked = useRemoteAI;
     (document.getElementById('localAiRadio') as HTMLInputElement).checked = !useRemoteAI;
@@ -458,25 +458,28 @@ async function loadAISettings() {
 // Handle AI model selection change
 function handleAIModelChange() {
   const useRemoteAI = (document.getElementById('remoteAiRadio') as HTMLInputElement).checked;
-  
+
   // Save setting to storage and notify service worker
   try {
-    chrome.runtime.sendMessage({
-      kind: 'setRemoteAI',
-      enabled: useRemoteAI
-    }, (response) => {
-      if (response && response.success) {
-        console.log('AI model switched successfully');
-        updateAIModelLabel();
-      } else {
-        // Even without a response, try to update the label since the storage should be updated
-        console.log('No response from service worker, but continuing anyway');
-        updateAIModelLabel();
-      }
-    });
-    
+    chrome.runtime.sendMessage(
+      {
+        kind: 'setRemoteAI',
+        enabled: useRemoteAI,
+      },
+      response => {
+        if (response?.success) {
+          console.log('AI model switched successfully');
+          updateAIModelLabel();
+        } else {
+          // Even without a response, try to update the label since the storage should be updated
+          console.log('No response from service worker, but continuing anyway');
+          updateAIModelLabel();
+        }
+      },
+    );
+
     // Update storage directly as well for redundancy
-    chrome.storage.local.set({ 'use_remote_ai': useRemoteAI }, () => {
+    chrome.storage.local.set({ use_remote_ai: useRemoteAI }, () => {
       console.log('AI model setting saved to storage');
       updateAIModelLabel();
     });
@@ -491,13 +494,12 @@ async function checkModelAvailability() {
   statusEl.className = 'status';
 
   try {
-
     // Check actual availability status
     const available = await LanguageModel.availability();
-    if (available === 'readily' || available === 'available') {
+    if (available === 'available') {
       statusEl.textContent = '✅ Available';
       statusEl.className = 'status available';
-    } else if (available === 'after-download') {
+    } else if (available === 'downloadable' || available === 'downloading') {
       statusEl.textContent = '⚠️ Available after download';
       statusEl.className = 'status available';
     } else {
@@ -510,13 +512,13 @@ async function checkModelAvailability() {
       const params = await LanguageModel.params();
       paramsEl.textContent = JSON.stringify(params, null, 2);
     } catch (error) {
-      paramsEl.textContent = `Error: ${error.message || 'Unknown error'}`;
+      paramsEl.textContent = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
 
     // Model capabilities is part of the params response
     capabilitiesEl.textContent = 'Model capabilities included in params response';
   } catch (error) {
-    statusEl.textContent = `❌ Error checking availability: ${error.message || 'Unknown error'}`;
+    statusEl.textContent = `❌ Error checking availability: ${error instanceof Error ? error.message : 'Unknown error'}`;
     statusEl.className = 'status unavailable';
   }
 }
@@ -570,11 +572,11 @@ async function updateAIModelLabel() {
   try {
     const useRemoteAI = await isRemoteAIEnabled();
     aiModelLabel.textContent = useRemoteAI ? 'Using: Claude AI' : 'Using: Chrome AI';
-    
+
     // Also update radio buttons if they exist
     const localRadio = document.getElementById('localAiRadio') as HTMLInputElement | null;
     const remoteRadio = document.getElementById('remoteAiRadio') as HTMLInputElement | null;
-    
+
     if (localRadio && remoteRadio) {
       localRadio.checked = !useRemoteAI;
       remoteRadio.checked = useRemoteAI;
@@ -588,14 +590,14 @@ async function updateAIModelLabel() {
 // Initialize when document is loaded
 (async function init() {
   await updateAIModelLabel();
-  
+
   // Listen for storage changes to update model label
-  chrome.storage.onChanged.addListener((changes) => {
+  chrome.storage.onChanged.addListener(changes => {
     if (changes.use_remote_ai) {
       updateAIModelLabel();
     }
   });
-  
+
   // When debug tab is clicked, make sure radio buttons are updated
   debugTab.addEventListener('click', async () => {
     await updateAIModelLabel();
