@@ -1,36 +1,6 @@
 import type { RawEvent, WorkflowAnalysis } from './types';
 
-// Define types for Chrome LanguageModel API
-// These types are not yet available in @types/chrome
-declare global {
-  interface Window {
-    chrome: typeof chrome;
-  }
-
-  interface LanguageModelPromptOptions {
-    temperature?: number;
-    topK?: number;
-    signal?: AbortSignal;
-    initialPrompts?: Array<{
-      role: 'system' | 'user' | 'model';
-      content: string;
-    }>;
-  }
-
-  class LanguageModelSession {
-    prompt(prompt: string): Promise<string>;
-    promptStreaming(prompt: string): ReadableStream<string>;
-    destroy(): void;
-    clone(): Promise<LanguageModelSession>;
-  }
-
-  // LanguageModel is a global object, not part of chrome
-  class LanguageModel {
-    static create(options?: LanguageModelPromptOptions): Promise<LanguageModelSession>;
-    static params(): Promise<{ defaultTemperature: number; defaultTopK: number; maxTopK: number }>;
-    static availability(): Promise<'no' | 'readily' | 'available' | 'after-download'>;
-  }
-}
+// The LanguageModel types are provided by @types/dom-chromium-ai package
 
 /**
  * Check if the AI model is available
@@ -58,7 +28,7 @@ export async function isAIModelAvailable(): Promise<boolean> {
       const available = await LanguageModel.availability();
       console.log('Model availability status:', available);
 
-      if (available === 'no') {
+      if (available === 'unavailable') {
         console.error('AI model not available, status:', available);
         return false;
       }
@@ -114,13 +84,13 @@ export async function testAIModel(): Promise<{
       return diagnosticResult;
     }
 
-    let available;
+    let available: Availability;
     // Check availability
     try {
       available = await LanguageModel.availability();
       diagnosticResult.modelStatus = available;
 
-      if (available === 'no') {
+      if (available === 'unavailable') {
         diagnosticResult.error = `Model not available (status: ${available})`;
         return diagnosticResult;
       }
@@ -132,7 +102,7 @@ export async function testAIModel(): Promise<{
     }
 
     // Try to create a session
-    let session;
+    let session: LanguageModel | undefined;
     try {
       console.log('Creating model session...');
 
@@ -140,7 +110,7 @@ export async function testAIModel(): Promise<{
       const params = await LanguageModel.params();
       console.log('Model params:', params);
 
-      if (available === 'after-download') {
+      if (available === 'downloadable' || available === 'downloading') {
         console.error('Model will take time to download');
       }
 
@@ -313,7 +283,7 @@ export async function analyzeWorkflow(
     console.log('Analyzing workflow with events:', events.length);
 
     // Check model parameters
-    let defaults;
+    let defaults: { defaultTemperature: number; defaultTopK: number; maxTopK: number };
     try {
       defaults = await LanguageModel.params();
       console.log('Model defaults:', defaults);
@@ -345,7 +315,7 @@ export async function analyzeWorkflow(
       modelStatus = available;
       console.log('Model availability status:', available);
 
-      if (available === 'no') {
+      if (available === 'unavailable') {
         console.error('AI model is not available:', available);
         return {
           summary: 'Error: AI model not available',
@@ -386,7 +356,7 @@ export async function analyzeWorkflow(
     }
 
     // Create a session with the language model
-    let session;
+    let session: LanguageModel | undefined;
     try {
       // Get the default parameters first
       const defaults = await LanguageModel.params();
@@ -426,7 +396,7 @@ export async function analyzeWorkflow(
     }
 
     // Send the prompt to the model
-    let result;
+    let result: string;
     try {
       console.log(
         'Sending prompt to model:',

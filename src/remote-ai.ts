@@ -1,8 +1,37 @@
+import Anthropic from '@anthropic-ai/sdk';
+import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { RawEvent, WorkflowAnalysis } from './types';
 
-// Default Claude API endpoint and version
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const CLAUDE_MODEL = 'claude-3-7-sonnet-latest';
+// Zod schema for workflow analysis
+const WorkflowAnalysisSchema = z.object({
+  summary: z.string().describe('Brief description of the overall workflow purpose - generalizable to similar workflows'),
+  steps: z.array(
+    z.object({
+      action: z.string().describe('What the user did'),
+      intent: z.string().describe('Why they did it / what they were trying to accomplish')
+    })
+  ).describe('Step-by-step breakdown of the workflow'),
+  suggestions: z.array(
+    z.string().describe('Suggestions for optimization, what to look out for, or potential pitfalls')
+  ).describe('Suggestions for executing or optimizing this workflow')
+});
+
+// Convert Zod schema to JSON Schema following best practices
+function getWorkflowAnalysisJsonSchema(): Anthropic.Tool.InputSchema {
+  const jsonSchema = zodToJsonSchema(WorkflowAnalysisSchema, 'schema');
+  const schemaDefinition = jsonSchema.definitions?.schema;
+  
+  if (!schemaDefinition) {
+    console.error('Failed to generate JSON schema:', jsonSchema);
+    throw new Error('Failed to generate JSON schema for WorkflowAnalysisSchema.');
+  }
+  
+  return schemaDefinition as Anthropic.Tool.InputSchema;
+}
+
+// Default Claude model
+const CLAUDE_MODEL = 'claude-opus-4-20250514';
 
 // Get API key from environment variables - must use VITE_ prefix and import.meta.env
 const CLAUDE_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || '';
@@ -94,14 +123,15 @@ export async function testRemoteAI(): Promise<{
       return testResult;
     }
 
-    // Try a simple prompt
-    const result = await callClaudeAPI(testResult.prompt, apiKey);
+    // Try a simple prompt - for testing, we'll create a minimal prompt
+    const testPrompt = 'Analyze this simple test workflow: User opens a webpage.';
+    const result = await callClaudeAPI(testPrompt, apiKey);
 
     if (!result) {
       testResult.error = 'Received empty response from Claude API';
     } else {
       testResult.success = true;
-      testResult.response = result;
+      testResult.response = `Test successful - received structured response: ${result.summary}`;
     }
   } catch (error) {
     testResult.error = error instanceof Error ? error.message : 'Unknown error';
@@ -177,69 +207,88 @@ function createPrompt(events: RawEvent[], customPrompt?: string): string {
   }
 
   return `
-You are an expert in analyzing user workflows in web applications. I'll provide you with a sequence of user interactions, and I need you to:
+You are an expert in analyzing user workflows in web applications. I'll provide you with a sequence of user interactions, and I need you to analyze the workflow.
 
 1. Identify the overall goal/purpose of this workflow - it should be generalizable to similar workflows.
 2. For each significant action, explain what the user was trying to accomplish
-3. Provide any suggestions on what someone should look out for when executing this workflow, how to optimize it, or any potential pitfalls.
-
-Your analysis should be structured as follows:
-{
-  "steps": [
-    {
-      "action": "What the user did",
-      "intent": "Why they did it / what they were trying to accomplish"
-    }
-  ],
-  "summary": "Brief description of the overall workflow purpose - generalizable to similar workflows",
-  "suggestions": [
-    "E.g. What to look out for when executing this workflow",
-    "E.g. How to optimize the workflow",
-    "E.g. What to do when it doesn't work as expected"
-  ]
-}
+3. Provide suggestions on what someone should look out for when executing this workflow, how to optimize it, or any potential pitfalls.
 
 Here is the workflow sequence:
 
 ${formattedEvents}
 
-Respond with only valid JSON. (No explanations, no additional text, just the JSON response. No markdown or code blocks.)
+Use the analyze_workflow tool to provide your structured analysis.
 `;
 }
 
 /**
- * Call the Claude API with a prompt
+ * Call the Claude API with a prompt using the Anthropic SDK with tools
  * @param prompt The prompt to send to Claude
  * @param apiKey The API key to use
- * @returns Promise that resolves to Claude's response
+ * @returns Promise that resolves to the structured WorkflowAnalysis
  */
-async function callClaudeAPI(prompt: string, apiKey: string): Promise<string> {
+async function callClaudeAPI(prompt: string, apiKey: string): Promise<WorkflowAnalysis> {
   try {
-    const response = await fetch(CLAUDE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        // Required header for direct browser access to Anthropic API
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 4000,
-        messages: [{ role: 'user', content: prompt }],
-      }),
+    const anthropic = new Anthropic({
+      apiKey,
+      // Required for browser usage
+      dangerouslyAllowBrowser: true,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`API error: ${response.status} - ${JSON.stringify(errorData)}`);
+    const message = await anthropic.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+      tools: [
+        {
+          name: 'analyze_workflow',
+          description: 'Analyze a user workflow and provide structured insights',
+          input_schema: getWorkflowAnalysisJsonSchema()
+        }
+      ],
+      tool_choice: { type: 'tool', name: 'analyze_workflow' }
+    });
+
+    // Extract tool use from the response
+    const toolUse = message.content.find(block => block.type === 'tool_use');
+    if (!toolUse || toolUse.type !== 'tool_use') {
+      throw new Error('No tool use in Claude response');
     }
 
-    const data = await response.json();
-    return data.content[0].text;
+    // Validate the response using Zod with proper error handling
+    const result = WorkflowAnalysisSchema.safeParse(toolUse.input);
+    
+    if (!result.success) {
+      console.error('Schema validation failed:', result.error);
+      throw new Error(`Response did not conform to expected schema: ${result.error.message}`);
+    }
+    
+    return result.data;
   } catch (error) {
     console.error('Error calling Claude API:', error);
+    
+    // Handle Zod validation errors
+    if (error instanceof z.ZodError) {
+      throw new Error(`Invalid response structure: ${error.message}`);
+    }
+    
+    // Handle specific Anthropic SDK errors
+    if (error instanceof Anthropic.APIError) {
+      throw new Error(`Anthropic API error: ${error.status} - ${error.message}`);
+    }
+    
+    if (error instanceof Anthropic.AuthenticationError) {
+      throw new Error('Invalid API key. Please check your Anthropic API key.');
+    }
+    
+    if (error instanceof Anthropic.RateLimitError) {
+      throw new Error('Rate limit exceeded. Please try again later.');
+    }
+    
+    if (error instanceof Anthropic.BadRequestError) {
+      throw new Error(`Bad request: ${error.message}`);
+    }
+    
     throw error;
   }
 }
@@ -285,59 +334,38 @@ export async function analyzeWorkflow(
 
     try {
       const result = await callClaudeAPI(prompt, apiKey);
-      console.log('Received response from Claude API:', `${result.substring(0, 100)}...`);
+      console.log('Received structured response from Claude API:', result.summary);
 
-      // Parse the response as JSON
-      try {
-        if (!result) {
-          console.error('Empty or undefined response from Claude API');
-          return {
-            summary: 'Error with Claude API response',
-            steps: [
-              {
-                action: 'Empty response from Claude API',
-                intent: 'The API returned an empty or undefined response',
-              },
-            ],
-            debug: {
-              prompt,
-              error: 'Empty or undefined response from Claude API',
-              rawResponse: 'undefined',
-              modelStatus: 'error',
-            },
-          };
-        }
-
-        const analysis = JSON.parse(result) as WorkflowAnalysis;
-
-        // Add debug info to the successful response
-        analysis.debug = {
-          prompt,
-          modelStatus: 'available',
-          rawResponse: result,
-        };
-
-        return analysis;
-      } catch (parseError) {
-        console.error('Error parsing Claude API response:', parseError);
-
-        // Return a default analysis with the error
+      if (!result) {
+        console.error('Empty or undefined response from Claude API');
         return {
-          summary: 'Error parsing Claude API response',
+          summary: 'Error with Claude API response',
           steps: [
             {
-              action: 'Failed to parse API response',
-              intent: 'The API response was not valid JSON. Try adjusting the prompt.',
+              action: 'Empty response from Claude API',
+              intent: 'The API returned an empty or undefined response',
             },
           ],
           debug: {
             prompt,
-            error: parseError instanceof Error ? parseError.message : 'Unknown parse error',
-            rawResponse: result || 'undefined or empty response',
+            error: 'Empty or undefined response from Claude API',
+            rawResponse: 'undefined',
             modelStatus: 'error',
           },
         };
       }
+
+      // Add debug info to the successful response
+      const analysis: WorkflowAnalysis = {
+        ...result,
+        debug: {
+          prompt,
+          modelStatus: 'available',
+          rawResponse: JSON.stringify(result),
+        },
+      };
+
+      return analysis;
     } catch (apiError) {
       console.error('Error calling Claude API:', apiError);
 
