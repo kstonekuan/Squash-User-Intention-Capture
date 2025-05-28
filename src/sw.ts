@@ -236,7 +236,7 @@ async function handleLocalAnalysis(customPrompt?: string): Promise<void> {
 
   try {
     // Extract the events between start and stop markers
-    if (!currentWorkflow?.startIndex || !currentWorkflow?.endIndex) {
+    if (currentWorkflow?.startIndex == null || currentWorkflow?.endIndex == null) {
       throw new Error('Invalid workflow indices');
     }
     const workflowEvents = ring.slice(currentWorkflow.startIndex, currentWorkflow.endIndex + 1);
@@ -272,7 +272,7 @@ async function handleRemoteAnalysis(customPrompt?: string): Promise<void> {
 
   try {
     // Extract the events between start and stop markers
-    if (!currentWorkflow?.startIndex || !currentWorkflow?.endIndex) {
+    if (currentWorkflow?.startIndex == null || currentWorkflow?.endIndex == null) {
       throw new Error('Invalid workflow indices');
     }
     const workflowEvents = ring.slice(currentWorkflow.startIndex, currentWorkflow.endIndex + 1);
