@@ -241,6 +241,7 @@ You are an expert in analyzing user workflows in web applications. I'll provide 
 1. Identify the overall goal/purpose of this workflow, so that a browser agent can use it replicate the user's actions.
 2. For each significant action, explain what the user was trying to accomplish
 3. Suggest any potential optimizations or shortcuts a browser agent could use to achieve the same result more efficiently.
+4. Create a single, clear natural language instruction that a browser automation tool can use to execute this entire workflow.
 
 Your analysis should be structured as follows:
 {
@@ -254,7 +255,8 @@ Your analysis should be structured as follows:
   "suggestions": [
     "Suggestion 1 for optimization",
     "Suggestion 2 for optimization"
-  ]
+  ],
+  "workflowPrompt": "A clear, concise natural language instruction that can be given to a browser automation tool to execute this entire workflow. Should be actionable and specific."
 }
 
 Here is the workflow sequence:

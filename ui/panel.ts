@@ -22,6 +22,8 @@ const analysisLoading = document.querySelector('.analysis-loading') as HTMLDivEl
 const workflowSummary = document.getElementById('workflowSummary') as HTMLParagraphElement;
 const workflowSteps = document.getElementById('workflowSteps') as HTMLDivElement;
 const workflowSuggestions = document.getElementById('workflowSuggestions') as HTMLUListElement;
+const workflowPrompt = document.getElementById('workflowPrompt') as HTMLTextAreaElement;
+const copyPromptBtn = document.getElementById('copyPromptBtn') as HTMLButtonElement;
 
 // Analysis debug elements
 const toggleDebugBtn = document.getElementById('toggleDebugBtn') as HTMLButtonElement;
@@ -288,6 +290,13 @@ function displayAnalysis(analysis: WorkflowAnalysis): void {
     workflowSuggestions.appendChild(li);
   }
 
+  // Update workflow prompt
+  if (analysis.workflowPrompt) {
+    workflowPrompt.value = analysis.workflowPrompt;
+  } else {
+    workflowPrompt.value = 'No workflow prompt generated';
+  }
+
   // Update debug information if available
   if (analysis.debug) {
     // Show debug elements
@@ -409,11 +418,32 @@ clearBtn.addEventListener('click', () => {
   workflowSteps.innerHTML = '';
   workflowSuggestions.innerHTML = '';
   workflowSummary.textContent = '';
+  workflowPrompt.value = '';
 });
 
 startMarkBtn.addEventListener('click', startRecording);
 stopMarkBtn.addEventListener('click', stopRecording);
 retryAnalysisBtn.addEventListener('click', retryAnalysis);
+
+// Copy workflow prompt to clipboard
+copyPromptBtn.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(workflowPrompt.value);
+    copyPromptBtn.textContent = 'Copied!';
+    setTimeout(() => {
+      copyPromptBtn.textContent = 'Copy Prompt';
+    }, 2000);
+  } catch (error) {
+    console.error('Failed to copy prompt:', error);
+    // Fallback: select the text
+    workflowPrompt.select();
+    workflowPrompt.setSelectionRange(0, 99999);
+    copyPromptBtn.textContent = 'Text Selected';
+    setTimeout(() => {
+      copyPromptBtn.textContent = 'Copy Prompt';
+    }, 2000);
+  }
+});
 
 eventsTab.addEventListener('click', () => setActiveTab('events'));
 analysisTab.addEventListener('click', () => setActiveTab('analysis'));

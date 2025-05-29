@@ -25,6 +25,9 @@ const WorkflowAnalysisSchema = z.object({
         .describe('Suggestions for optimization, what to look out for, or potential pitfalls'),
     )
     .describe('Suggestions for executing or optimizing this workflow'),
+  workflowPrompt: z
+    .string()
+    .describe('A clear, concise natural language instruction that can be given to a browser automation tool to execute this entire workflow. Should be actionable and specific.'),
 });
 
 // Default Claude model

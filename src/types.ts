@@ -115,6 +115,7 @@ export interface WorkflowAnalysis {
     intent: string; // Why they did it
   }[];
   suggestions?: string[]; // Optional improvement suggestions
+  workflowPrompt?: string; // Natural language prompt for workflow execution
   debug?: {
     // Debug information (new)
     prompt?: string; // The prompt sent to the model
