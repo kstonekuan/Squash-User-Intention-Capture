@@ -8,13 +8,21 @@ const WorkflowAnalysisSchema = z.object({
   summary: z
     .string()
     .describe(
-      'Brief description of the overall workflow purpose - generalizable to similar workflows',
+      'A concise, high-level summary of the user\'s overall goal or task. This should be generalizable and describe the main objective. Example: "User logs into their account" or "User searches for a product and adds it to the cart."',
     ),
   steps: z
     .array(
       z.object({
-        action: z.string().describe('What the user did'),
-        intent: z.string().describe('Why they did it / what they were trying to accomplish'),
+        action: z
+          .string()
+          .describe(
+            'A specific, observable action performed by the user. Focus on what happened. Example: "Clicked the login button", "Typed username into the input field", "Navigated to /products page."',
+          ),
+        intent: z
+          .string()
+          .describe(
+            'The user\'s immediate goal or reason for performing this specific action. Focus on why it happened. Example: "To submit login credentials", "To enter their username", "To view available products."',
+          ),
       }),
     )
     .describe('Step-by-step breakdown of the workflow'),
@@ -22,12 +30,16 @@ const WorkflowAnalysisSchema = z.object({
     .array(
       z
         .string()
-        .describe('Suggestions for optimization, what to look out for, or potential pitfalls'),
+        .describe(
+          'Actionable advice related to this workflow. Can include tips for efficiency, common mistakes to avoid, alternative approaches, or important considerations. Example: "Ensure the password meets complexity requirements" or "Consider bookmarking this page for faster access."',
+        ),
     )
     .describe('Suggestions for executing or optimizing this workflow'),
   workflowPrompt: z
     .string()
-    .describe('A clear, concise natural language instruction that can be given to a browser automation tool to execute this entire workflow. Should be actionable and specific.'),
+    .describe(
+      'A single, clear, and concise natural language instruction, including necessary parameters, that could be given to a browser automation tool (like a voice assistant or script) to execute this entire workflow. Should be actionable and specific. Example: "Log into example.com with username \'testuser\' and password \'password123\'" or "Search for \'blue widgets\', add the first result to the cart, and proceed to checkout."',
+    ),
 });
 
 // Default Claude model
@@ -251,7 +263,7 @@ export async function callClaudeWithTools(
     });
 
     // Extract tool use from the response
-    const toolUse = message.content.find(block => block.type === 'tool_use');
+    const toolUse = message.content.find((block: any) => block.type === 'tool_use');
     if (!toolUse || toolUse.type !== 'tool_use') {
       throw new Error('No tool use in Claude response');
     }
@@ -262,7 +274,7 @@ export async function callClaudeWithTools(
 
     // Handle specific Anthropic SDK errors
     if (error instanceof Anthropic.APIError) {
-      throw new Error(`Anthropic API error: ${error.status} - ${error.message}`);
+      throw new Error(`Anthropic API error: ${(error as any).status} - ${(error as any).message}`);
     }
 
     if (error instanceof Anthropic.AuthenticationError) {
@@ -274,7 +286,7 @@ export async function callClaudeWithTools(
     }
 
     if (error instanceof Anthropic.BadRequestError) {
-      throw new Error(`Bad request: ${error.message}`);
+      throw new Error(`Bad request: ${(error as any).message}`);
     }
 
     throw error;
@@ -307,7 +319,7 @@ export async function callClaudeWithSchema<T extends z.ZodTypeAny>(
 
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {
-      throw new Error(`Invalid response structure: ${error.message}`);
+      throw new Error(`Invalid response structure: ${(error as any).message}`);
     }
 
     // Re-throw API errors from callClaudeWithTools

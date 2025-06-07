@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference types="@types/dom-chromium-ai" />
 
 interface ImportMetaEnv {
   readonly VITE_ANTHROPIC_API_KEY: string;
