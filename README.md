@@ -114,6 +114,57 @@ npm run build
 - **Storage**: IndexedDB with compression
 - **Build**: Vite + CRXJS plugin
 
+## 🗺️ Roadmap
+
+We're just getting started! Here's what we're brainstorming for the future:
+
+### 🤖 Browser Agent Integration
+- **One-Click Automation**: Convert recorded tasks into executable browser agents
+- **Playwright/Selenium Export**: Generate ready-to-run automation scripts
+- **Voice-Activated Tasks**: "Hey, book my usual flight" → automated execution
+- **Smart Replay**: Re-run tasks with dynamic adaptation to UI changes
+
+### 🎯 Trigger-Based Behaviors  
+- **Smart Notifications**: "You usually check email after this task"
+- **Auto-Form Fill**: Learn your patterns and pre-populate forms
+- **Workflow Shortcuts**: One-click execution of multi-step processes
+- **Context-Aware Suggestions**: "Based on your current task, you might want to..."
+
+### 🧠 Advanced AI Features
+- **Multi-Task Learning**: Understand relationships between different workflows
+- **Anomaly Detection**: "This task is taking longer than usual"
+- **Predictive Actions**: Suggest next steps before you think of them
+- **Cross-Site Intelligence**: Connect workflows across different websites
+
+### 🔗 Integration Ecosystem
+- **API Webhooks**: Trigger external services based on task completion
+- **Slack/Teams Bots**: Share workflow insights with your team
+- **Analytics Dashboards**: Track productivity patterns over time
+- **Browser Extension Bridge**: Connect with other productivity tools
+
+### 🎨 Enhanced User Experience
+- **Visual Workflow Builder**: Drag-and-drop task automation
+- **Mobile Companion**: Analyze mobile web workflows
+- **Team Collaboration**: Share and compare workflows with colleagues
+- **Custom Roasting Themes**: Because regular roasting isn't enough 🔥
+
+### 🏢 Enterprise Features
+- **Compliance Monitoring**: Ensure workflows follow company policies
+- **Training Mode**: Generate onboarding materials from expert workflows
+- **Performance Metrics**: Team productivity insights and optimization
+- **Security Auditing**: Track sensitive data interactions
+
+**🚀 Want to help build the future of browser intelligence?** 
+
+We're looking for contributors interested in:
+- AI/ML for workflow prediction
+- Browser automation frameworks
+- Chrome extension APIs
+- UX design for complex workflows
+- Developer tooling and integrations
+
+Drop us a line in the issues if any of these directions excite you!
+
 ## 📱 Screenshots
 
 [Add screenshots here of the side panel, analysis results, roasting mode, etc.]
@@ -136,7 +187,6 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 - Built with Chrome's experimental AI APIs
 - Powered by Anthropic's Claude for advanced analysis
-- Uses rrweb for robust event recording
 
 ---
 
