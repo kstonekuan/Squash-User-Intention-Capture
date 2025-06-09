@@ -241,8 +241,15 @@ async function handleLocalAnalysis(customPrompt?: string): Promise<void> {
     }
     const workflowEvents = ring.slice(currentWorkflow.startIndex, currentWorkflow.endIndex + 1);
 
+    // Check if roasting mode is enabled
+    const roastingMode = await new Promise<boolean>((resolve) => {
+      chrome.storage.local.get(['roasting_mode'], (result) => {
+        resolve(result.roasting_mode === true);
+      });
+    });
+
     // Analyze the workflow using local AI
-    const analysis = await analyzeWorkflowLocal(workflowEvents, customPrompt);
+    const analysis = await analyzeWorkflowLocal(workflowEvents, customPrompt, roastingMode);
 
     // Broadcast the analysis to all connected ports
     broadcastAnalysis(analysis);
@@ -277,8 +284,15 @@ async function handleRemoteAnalysis(customPrompt?: string): Promise<void> {
     }
     const workflowEvents = ring.slice(currentWorkflow.startIndex, currentWorkflow.endIndex + 1);
 
+    // Check if roasting mode is enabled
+    const roastingMode = await new Promise<boolean>((resolve) => {
+      chrome.storage.local.get(['roasting_mode'], (result) => {
+        resolve(result.roasting_mode === true);
+      });
+    });
+
     // Analyze the workflow using remote AI
-    const analysis = await analyzeWorkflowRemote(workflowEvents, customPrompt);
+    const analysis = await analyzeWorkflowRemote(workflowEvents, customPrompt, roastingMode);
 
     // Broadcast the analysis to all connected ports
     broadcastAnalysis(analysis);

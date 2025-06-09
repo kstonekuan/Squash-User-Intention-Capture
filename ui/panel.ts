@@ -1,6 +1,7 @@
 import { testAIModel } from '../src/ai';
 import { isRemoteAIEnabled } from '../src/remote-ai';
-import type { PortMessage, RawEvent, WorkflowAnalysis } from '../src/types';
+import { getAllHistoryEntries, saveHistoryEntry, deleteHistoryEntry, clearAllHistory } from '../src/db';
+import type { PortMessage, RawEvent, WorkflowAnalysis, WorkflowHistoryEntry } from '../src/types';
 
 // Elements
 const log = document.getElementById('log') as HTMLUListElement;
@@ -12,9 +13,11 @@ const retryAnalysisBtn = document.getElementById('retryAnalysisBtn') as HTMLButt
 const aiModelLabel = document.getElementById('aiModelLabel') as HTMLSpanElement;
 const eventsTab = document.getElementById('eventsTab') as HTMLDivElement;
 const analysisTab = document.getElementById('analysisTab') as HTMLDivElement;
+const historyTab = document.getElementById('historyTab') as HTMLDivElement;
 const debugTab = document.getElementById('debugTab') as HTMLDivElement;
 const eventsContent = document.getElementById('eventsContent') as HTMLDivElement;
 const analysisContent = document.getElementById('analysisContent') as HTMLDivElement;
+const historyContent = document.getElementById('historyContent') as HTMLDivElement;
 const debugContent = document.getElementById('debugContent') as HTMLDivElement;
 const analysisPlaceholder = document.querySelector('.analysis-placeholder') as HTMLDivElement;
 const analysisResults = document.querySelector('.analysis-results') as HTMLDivElement;
@@ -42,6 +45,11 @@ const paramsEl = document.getElementById('params') as HTMLSpanElement;
 const capabilitiesEl = document.getElementById('capabilities') as HTMLSpanElement;
 const testResultsEl = document.getElementById('testResults') as HTMLPreElement;
 const simpleDiagnosticBtn = document.getElementById('simpleDiagnosticBtn') as HTMLButtonElement;
+const roastingModeCheckbox = document.getElementById('roastingModeCheckbox') as HTMLInputElement;
+
+// History tab elements
+const historyList = document.getElementById('historyList') as HTMLDivElement;
+const clearHistoryBtn = document.getElementById('clearHistoryBtn') as HTMLButtonElement;
 
 // Connect to background service worker
 const port = chrome.runtime.connect({ name: 'log' });
@@ -101,35 +109,39 @@ function add(event: RawEvent): void {
   }
 }
 
-// Format event for display
+// Format event for display with better aesthetics
 function format(event: RawEvent): string {
   // User interaction events
   if (event.type === 'user') {
-    let text = `${event.action.toUpperCase()} ${event.target}`;
+    const actionIcon = getActionIcon(event.action);
+    let text = `${actionIcon} ${formatAction(event.action)} ${formatTarget(event.target)}`;
     if (event.value && event.action !== 'password') {
-      text += ` → "${event.value}"`;
+      text += ` → "${truncateValue(event.value, 30)}"`;
     }
     return text;
   }
 
   // Navigation events
   if (event.type === 'nav') {
-    return `→ NAV ${event.url}`;
+    return `🌐 Navigate to ${formatUrl(event.url)}`;
   }
 
   // Tab events
   if (event.type === 'tab') {
-    return `TAB ${event.action}`;
+    const tabIcon = getTabIcon(event.action);
+    return `${tabIcon} Tab ${event.action}`;
   }
 
   // Page lifecycle events
   if (event.type === 'page') {
-    return `PAGE ${event.action} ${event.url}`;
+    const pageIcon = getPageIcon(event.action);
+    return `${pageIcon} Page ${event.action} ${formatUrl(event.url)}`;
   }
 
   // Visibility state changes
   if (event.type === 'visibility') {
-    return `VIS ${event.action}`;
+    const visIcon = event.action === 'visible' ? '👀' : '🙈';
+    return `${visIcon} Page ${event.action}`;
   }
 
   // Keyboard events
@@ -138,26 +150,24 @@ function format(event: RawEvent): string {
     if (event.modifiers.ctrl) modifiers.push('Ctrl');
     if (event.modifiers.alt) modifiers.push('Alt');
     if (event.modifiers.shift) modifiers.push('Shift');
-    if (event.modifiers.meta) modifiers.push('Meta');
+    if (event.modifiers.meta) modifiers.push('⌘');
 
     const keyCombo = modifiers.length ? `${modifiers.join('+')}+${event.key}` : event.key;
-
-    return `KEY ${keyCombo}`;
+    return `⌨️ Key ${keyCombo}`;
   }
 
   // Mouse hover events
   if (event.type === 'hover') {
-    return `HOVER ${event.target}`;
+    return `🖱️ Hover ${formatTarget(event.target)}`;
   }
 
   // URL hash changes
   if (event.type === 'hashchange') {
-    return `HASH ${new URL(event.to).hash}`;
+    return `🔗 Hash change to ${new URL(event.to).hash}`;
   }
 
   // XHR requests
   if (event.type === 'xhr') {
-    // Get just the path part of the URL
     let urlDisplay = event.url;
     try {
       const url = new URL(event.url, event.pageUrl);
@@ -165,12 +175,11 @@ function format(event: RawEvent): string {
     } catch (_e) {
       // Use the original if parsing fails
     }
-    return `XHR ${event.method} ${urlDisplay}`;
+    return `📡 XHR ${event.method} ${formatUrl(urlDisplay)}`;
   }
 
   // Fetch API requests
   if (event.type === 'fetch') {
-    // Get just the path part of the URL
     let urlDisplay = event.url;
     try {
       const url = new URL(event.url, event.pageUrl);
@@ -178,16 +187,80 @@ function format(event: RawEvent): string {
     } catch (_e) {
       // Use the original if parsing fails
     }
-    return `FETCH ${event.method} ${urlDisplay}`;
+    return `🚀 Fetch ${event.method} ${formatUrl(urlDisplay)}`;
   }
 
   // Workflow mark events (new in v0.5)
   if (event.type === 'mark') {
-    return `WORKFLOW ${event.action.toUpperCase()}`;
+    const markIcon = event.action === 'start' ? '🟢' : '🔴';
+    return `${markIcon} Workflow ${event.action.toUpperCase()}`;
   }
 
   // Fallback for unknown event types
   return JSON.stringify(event).slice(0, 80);
+}
+
+// Helper functions for better formatting
+function getActionIcon(action: string): string {
+  switch (action) {
+    case 'click': return '👆';
+    case 'input-debounced': 
+    case 'input-at-submit':
+    case 'input-enter': return '⌨️';
+    case 'select-option': return '📋';
+    case 'submit': return '📤';
+    case 'scroll': return '📜';
+    case 'select': return '🔤';
+    default: return '⚡';
+  }
+}
+
+function getTabIcon(action: string): string {
+  switch (action) {
+    case 'activated': return '📑';
+    case 'created': return '➕';
+    case 'removed': return '➖';
+    default: return '📋';
+  }
+}
+
+function getPageIcon(action: string): string {
+  switch (action) {
+    case 'visit': return '🌍';
+    case 'load': return '⚡';
+    case 'DOMContentLoaded': return '📄';
+    default: return '📃';
+  }
+}
+
+function formatAction(action: string): string {
+  switch (action) {
+    case 'input-debounced': return 'Type';
+    case 'input-at-submit': return 'Input';
+    case 'input-enter': return 'Enter';
+    case 'select-option': return 'Select';
+    default: return action.charAt(0).toUpperCase() + action.slice(1);
+  }
+}
+
+function formatTarget(target: string): string {
+  // Simplify complex selectors for better readability
+  return target.length > 40 ? target.substring(0, 37) + '...' : target;
+}
+
+function formatUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    const domain = urlObj.hostname.replace('www.', '');
+    const path = urlObj.pathname + urlObj.search;
+    return path === '/' ? domain : `${domain}${path.length > 30 ? path.substring(0, 27) + '...' : path}`;
+  } catch {
+    return url.length > 40 ? url.substring(0, 37) + '...' : url;
+  }
+}
+
+function truncateValue(value: string, maxLength: number): string {
+  return value.length > maxLength ? value.substring(0, maxLength - 3) + '...' : value;
 }
 
 // Get CSS class for event styling
@@ -247,7 +320,7 @@ function hideAnalysisLoading(): void {
 }
 
 // Display analysis results
-function displayAnalysis(analysis: WorkflowAnalysis): void {
+async function displayAnalysis(analysis: WorkflowAnalysis): Promise<void> {
   // Switch to the analysis tab
   setActiveTab('analysis');
 
@@ -256,7 +329,33 @@ function displayAnalysis(analysis: WorkflowAnalysis): void {
   analysisLoading.style.display = 'none';
   analysisResults.style.display = 'block';
 
-  // Update summary
+  // Save to history
+  saveAnalysisToHistory(analysis);
+
+  // Check if roasting mode is enabled
+  const roastingMode = await new Promise<boolean>((resolve) => {
+    chrome.storage.local.get(['roasting_mode'], (result) => {
+      resolve(result.roasting_mode === true);
+    });
+  });
+
+  if (roastingMode) {
+    // Display roasting mode with hero card
+    displayRoastingAnalysis(analysis);
+  } else {
+    // Display normal analysis
+    displayNormalAnalysis(analysis);
+  }
+}
+
+// Display normal analysis
+function displayNormalAnalysis(analysis: WorkflowAnalysis): void {
+  // Show all sections
+  (document.querySelector('.analysis-section') as HTMLElement)?.style.setProperty('display', 'block');
+  (document.querySelector('.analysis-suggestions') as HTMLElement)?.style.setProperty('display', 'block');
+  (document.querySelector('.analysis-section:has(#workflowPrompt)') as HTMLElement)?.style.setProperty('display', 'block');
+
+  // Update summary normally
   workflowSummary.textContent = analysis.summary;
 
   // Update steps
@@ -297,6 +396,54 @@ function displayAnalysis(analysis: WorkflowAnalysis): void {
     workflowPrompt.value = 'No workflow prompt generated';
   }
 
+  // Update debug information
+  updateDebugInformation(analysis);
+}
+
+// Display roasting analysis with hero card
+function displayRoastingAnalysis(analysis: WorkflowAnalysis): void {
+  // Hide suggestions and workflow prompt sections
+  const suggestionsSection = document.querySelector('.analysis-suggestions') as HTMLElement;
+  const workflowPromptSection = workflowPrompt.closest('.analysis-section') as HTMLElement;
+  
+  if (suggestionsSection) suggestionsSection.style.display = 'none';
+  if (workflowPromptSection) workflowPromptSection.style.display = 'none';
+
+  // Create or update hero card for the summary
+  const summarySection = workflowSummary.closest('.analysis-section') as HTMLElement;
+  if (summarySection) {
+    // Replace the normal summary with hero card
+    summarySection.innerHTML = `
+      <div class="roast-hero-card">
+        <h2>🔥 AI Assisted Task Roasting 🔥</h2>
+        <p class="roast-hero-text">${analysis.summary}</p>
+      </div>
+    `;
+  }
+
+  // Update steps normally but keep them visible
+  workflowSteps.innerHTML = '';
+  for (const step of analysis.steps) {
+    const stepEl = document.createElement('div');
+    stepEl.className = 'analysis-step';
+
+    const actionEl = document.createElement('h3');
+    actionEl.textContent = step.action;
+
+    const intentEl = document.createElement('p');
+    intentEl.textContent = step.intent;
+
+    stepEl.appendChild(actionEl);
+    stepEl.appendChild(intentEl);
+    workflowSteps.appendChild(stepEl);
+  }
+
+  // Update debug information
+  updateDebugInformation(analysis);
+}
+
+// Update debug information (shared between normal and roasting analysis)
+function updateDebugInformation(analysis: WorkflowAnalysis): void {
   // Update debug information if available
   if (analysis.debug) {
     // Show debug elements
@@ -327,21 +474,28 @@ function displayAnalysis(analysis: WorkflowAnalysis): void {
 }
 
 // Tab switching
-function setActiveTab(tabId: 'events' | 'analysis' | 'debug'): void {
+function setActiveTab(tabId: 'events' | 'analysis' | 'history' | 'debug'): void {
   // Update tab states
   eventsTab.classList.toggle('active', tabId === 'events');
   analysisTab.classList.toggle('active', tabId === 'analysis');
+  historyTab.classList.toggle('active', tabId === 'history');
   debugTab.classList.toggle('active', tabId === 'debug');
 
   // Update content visibility
   eventsContent.classList.toggle('active', tabId === 'events');
   analysisContent.classList.toggle('active', tabId === 'analysis');
+  historyContent.classList.toggle('active', tabId === 'history');
   debugContent.classList.toggle('active', tabId === 'debug');
 
   // Run initial checks if debug tab is activated
   if (tabId === 'debug') {
     checkEnvironment();
     checkModelAvailability();
+  }
+  
+  // Load history if history tab is activated
+  if (tabId === 'history') {
+    loadHistory();
   }
 }
 
@@ -447,6 +601,7 @@ copyPromptBtn.addEventListener('click', async () => {
 
 eventsTab.addEventListener('click', () => setActiveTab('events'));
 analysisTab.addEventListener('click', () => setActiveTab('analysis'));
+historyTab.addEventListener('click', () => setActiveTab('history'));
 debugTab.addEventListener('click', () => setActiveTab('debug'));
 
 // Debug tab functionality
@@ -476,12 +631,16 @@ function checkEnvironment() {
 
 // Load AI settings from storage
 async function loadAISettings() {
-  chrome.storage.local.get(['use_remote_ai'], result => {
+  chrome.storage.local.get(['use_remote_ai', 'roasting_mode'], result => {
     const useRemoteAI = result.use_remote_ai === true;
+    const roastingMode = result.roasting_mode === true;
 
     // Set radio buttons
     (document.getElementById('remoteAiRadio') as HTMLInputElement).checked = useRemoteAI;
     (document.getElementById('localAiRadio') as HTMLInputElement).checked = !useRemoteAI;
+    
+    // Set roasting mode checkbox
+    roastingModeCheckbox.checked = roastingMode;
   });
 }
 
@@ -516,6 +675,16 @@ function handleAIModelChange() {
   } catch (error) {
     console.error('Error in handleAIModelChange:', error);
   }
+}
+
+// Handle roasting mode toggle change
+function handleRoastingModeChange() {
+  const roastingMode = roastingModeCheckbox.checked;
+
+  // Save setting to storage
+  chrome.storage.local.set({ roasting_mode: roastingMode }, () => {
+    console.log('Roasting mode setting saved to storage:', roastingMode);
+  });
 }
 
 // Check model availability
@@ -558,6 +727,7 @@ checkBtn.addEventListener('click', checkModelAvailability);
 simpleDiagnosticBtn.addEventListener('click', runDiagnosticTest);
 document.getElementById('localAiRadio')?.addEventListener('change', handleAIModelChange);
 document.getElementById('remoteAiRadio')?.addEventListener('change', handleAIModelChange);
+roastingModeCheckbox.addEventListener('change', handleRoastingModeChange);
 
 // Simple diagnostic test function
 async function runDiagnosticTest() {
@@ -616,6 +786,123 @@ async function updateAIModelLabel() {
     aiModelLabel.textContent = 'Using: Unknown';
   }
 }
+
+// History management functions
+async function saveAnalysisToHistory(analysis: WorkflowAnalysis): Promise<void> {
+  try {
+    const historyEntry: WorkflowHistoryEntry = {
+      id: `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: Date.now(),
+      analysis,
+      title: generateHistoryTitle(analysis.summary),
+    };
+    
+    await saveHistoryEntry(historyEntry);
+  } catch (error) {
+    console.error('Failed to save analysis to history:', error);
+  }
+}
+
+function generateHistoryTitle(summary: string): string {
+  // Generate a concise title from the summary
+  const words = summary.split(' ').slice(0, 6);
+  let title = words.join(' ');
+  if (summary.split(' ').length > 6) {
+    title += '...';
+  }
+  return title || 'Workflow Analysis';
+}
+
+async function loadHistory(): Promise<void> {
+  try {
+    const entries = await getAllHistoryEntries();
+    renderHistoryList(entries);
+  } catch (error) {
+    console.error('Failed to load history:', error);
+    historyList.innerHTML = '<div class="history-placeholder"><p>Error loading history.</p></div>';
+  }
+}
+
+function renderHistoryList(entries: WorkflowHistoryEntry[]): void {
+  if (entries.length === 0) {
+    historyList.innerHTML = `
+      <div class="history-placeholder">
+        <p>No workflow analyses in history yet.</p>
+        <p>Complete a workflow analysis to see it appear here.</p>
+      </div>
+    `;
+    return;
+  }
+
+  historyList.innerHTML = entries.map(entry => `
+    <div class="history-item" data-id="${entry.id}">
+      <div class="history-item-header">
+        <h3 class="history-item-title">${entry.title}</h3>
+        <span class="history-item-date">${formatHistoryDate(entry.timestamp)}</span>
+      </div>
+      <p class="history-item-summary">${entry.analysis.summary}</p>
+      <div class="history-item-actions">
+        <button class="btn btn-secondary history-action-btn" onclick="viewHistoryItem('${entry.id}')">View</button>
+        <button class="btn btn-danger history-action-btn" onclick="deleteHistoryItem('${entry.id}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function formatHistoryDate(timestamp: number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMins < 60) {
+    return diffMins <= 1 ? 'Just now' : `${diffMins}m ago`;
+  } else if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  } else if (diffDays < 7) {
+    return `${diffDays}d ago`;
+  } else {
+    return date.toLocaleDateString();
+  }
+}
+
+// Global functions for onclick handlers
+(window as any).viewHistoryItem = async (id: string) => {
+  try {
+    const entries = await getAllHistoryEntries();
+    const entry = entries.find(e => e.id === id);
+    if (entry) {
+      displayAnalysis(entry.analysis);
+    }
+  } catch (error) {
+    console.error('Failed to view history item:', error);
+  }
+};
+
+(window as any).deleteHistoryItem = async (id: string) => {
+  if (confirm('Are you sure you want to delete this analysis?')) {
+    try {
+      await deleteHistoryEntry(id);
+      loadHistory(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to delete history item:', error);
+    }
+  }
+};
+
+// Clear history button handler
+clearHistoryBtn.addEventListener('click', async () => {
+  if (confirm('Are you sure you want to clear all analysis history? This cannot be undone.')) {
+    try {
+      await clearAllHistory();
+      loadHistory(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to clear history:', error);
+    }
+  }
+});
 
 // Initialize when document is loaded
 (async function init() {

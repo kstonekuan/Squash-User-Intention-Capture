@@ -226,13 +226,43 @@ function formatEventsForPrompt(events: RawEvent[]): string {
  * Create a prompt for the AI model based on the workflow events
  * @param events Array of events in the workflow
  * @param customPrompt Optional custom prompt to use instead of the default
+ * @param roastingMode Whether to use roasting mode instead of normal analysis
  * @returns Formatted prompt string
  */
-function createPrompt(events: RawEvent[], customPrompt?: string): string {
+function createPrompt(events: RawEvent[], customPrompt?: string, roastingMode = false): string {
   const formattedEvents = formatEventsForPrompt(events);
 
   if (customPrompt) {
     return `${customPrompt}\n\nWorkflow:\n${formattedEvents}`;
+  }
+
+  if (roastingMode) {
+    return `
+You are a brutally honest AI assistant who specializes in roasting user tasks with humor and emojis. I'll provide you with a sequence of user interactions, and I need you to:
+
+1. Create a SINGLE, devastating one-liner roast about how inefficient or ridiculous this task is - use emojis and keep it UNDER 140 characters
+2. For steps, be sarcastic but still technically accurate
+3. You can skip suggestions since we don't need them for roasting
+
+Your response should be structured as follows:
+{
+  "summary": "🔥 A SINGLE roast line with emojis about this task (MUST be under 140 characters - think Twitter-style burn) 🔥",
+  "steps": [
+    {
+      "action": "What the user did (add some sarcasm and emojis)",
+      "intent": "A witty roast about why they probably did this poorly"
+    }
+  ],
+  "suggestions": [],
+  "workflowPrompt": "Skip this - not needed for roasting"
+}
+
+Here is the task sequence to roast:
+
+${formattedEvents}
+
+Respond with only valid JSON. Keep the summary UNDER 140 characters but make it a devastating burn with emojis.
+`;
   }
 
   return `
@@ -271,14 +301,16 @@ Respond with only valid JSON.
  * Analyze a workflow using the Chrome Language Model API
  * @param events Array of events in the workflow to analyze
  * @param customPrompt Optional custom prompt to use
+ * @param roastingMode Whether to use roasting mode instead of normal analysis
  * @returns Promise that resolves to a WorkflowAnalysis object
  */
 export async function analyzeWorkflow(
   events: RawEvent[],
   customPrompt?: string,
+  roastingMode = false,
 ): Promise<WorkflowAnalysis> {
   // Generate the prompt early to include in error responses
-  const prompt = createPrompt(events, customPrompt);
+  const prompt = createPrompt(events, customPrompt, roastingMode);
   let modelStatus = 'unknown';
 
   try {

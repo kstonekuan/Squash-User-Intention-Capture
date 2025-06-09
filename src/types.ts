@@ -125,6 +125,14 @@ export interface WorkflowAnalysis {
   };
 }
 
+// Workflow history entry
+export interface WorkflowHistoryEntry {
+  id: string;
+  timestamp: number;
+  analysis: WorkflowAnalysis;
+  title: string; // Auto-generated title based on summary
+}
+
 // DB types
 export interface DBChunk {
   id?: number;

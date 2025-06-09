@@ -1,8 +1,9 @@
-import type { DBChunk, RawEvent } from './types';
+import type { DBChunk, RawEvent, WorkflowHistoryEntry } from './types';
 
 const DB_NAME = 'workflow-db';
 const STORE_NAME = 'chunks';
-const DB_VERSION = 1;
+const HISTORY_STORE_NAME = 'history';
+const DB_VERSION = 2;
 
 let db: IDBDatabase | null = null;
 
@@ -27,6 +28,13 @@ export async function openDB(): Promise<IDBDatabase> {
           keyPath: 'id',
           autoIncrement: true,
         });
+      }
+
+      if (!database.objectStoreNames.contains(HISTORY_STORE_NAME)) {
+        const historyStore = database.createObjectStore(HISTORY_STORE_NAME, {
+          keyPath: 'id',
+        });
+        historyStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
     };
   });
@@ -69,6 +77,64 @@ export async function clearAllChunks(): Promise<void> {
   const database = await openDB();
   const transaction = database.transaction(STORE_NAME, 'readwrite');
   const store = transaction.objectStore(STORE_NAME);
+
+  return new Promise((resolve, reject) => {
+    const request = store.clear();
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// History management functions
+export async function saveHistoryEntry(entry: WorkflowHistoryEntry): Promise<void> {
+  const database = await openDB();
+  const transaction = database.transaction(HISTORY_STORE_NAME, 'readwrite');
+  const store = transaction.objectStore(HISTORY_STORE_NAME);
+
+  return new Promise((resolve, reject) => {
+    const request = store.add(entry);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getAllHistoryEntries(): Promise<WorkflowHistoryEntry[]> {
+  const database = await openDB();
+  const transaction = database.transaction(HISTORY_STORE_NAME, 'readonly');
+  const store = transaction.objectStore(HISTORY_STORE_NAME);
+  const index = store.index('timestamp');
+
+  return new Promise((resolve, reject) => {
+    const request = index.getAll();
+
+    request.onsuccess = () => {
+      // Sort by timestamp descending (newest first)
+      const results = request.result.sort((a, b) => b.timestamp - a.timestamp);
+      resolve(results);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function deleteHistoryEntry(id: string): Promise<void> {
+  const database = await openDB();
+  const transaction = database.transaction(HISTORY_STORE_NAME, 'readwrite');
+  const store = transaction.objectStore(HISTORY_STORE_NAME);
+
+  return new Promise((resolve, reject) => {
+    const request = store.delete(id);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function clearAllHistory(): Promise<void> {
+  const database = await openDB();
+  const transaction = database.transaction(HISTORY_STORE_NAME, 'readwrite');
+  const store = transaction.objectStore(HISTORY_STORE_NAME);
 
   return new Promise((resolve, reject) => {
     const request = store.clear();

@@ -209,13 +209,32 @@ function formatEventsForPrompt(events: RawEvent[]): string {
  * Create a prompt for Claude based on the workflow events
  * @param events Array of events in the workflow
  * @param customPrompt Optional custom prompt to use instead of the default
+ * @param roastingMode Whether to use roasting mode instead of normal analysis
  * @returns Formatted prompt string
  */
-function createPrompt(events: RawEvent[], customPrompt?: string): string {
+function createPrompt(events: RawEvent[], customPrompt?: string, roastingMode = false): string {
   const formattedEvents = formatEventsForPrompt(events);
 
   if (customPrompt) {
     return `${customPrompt}\n\nWorkflow:\n${formattedEvents}`;
+  }
+
+  if (roastingMode) {
+    return `
+You are a brutally honest AI assistant who specializes in roasting user tasks with humor and emojis. I'll provide you with a sequence of user interactions, and I need you to:
+
+1. Create a SINGLE, devastating one-liner roast about how inefficient or ridiculous this task is - use emojis and keep it UNDER 140 characters
+2. For steps, be sarcastic but still technically accurate  
+3. You can skip suggestions since we don't need them for roasting
+
+The most important part is the SUMMARY - make it a single roast under 140 characters with emojis that gets people laughing about this task's inefficiency.
+
+Here is the task sequence to roast:
+
+${formattedEvents}
+
+Use the json tool to provide your structured roast. Keep the summary UNDER 140 characters but make it a devastating burn with emojis.
+`;
   }
 
   return `
@@ -331,14 +350,16 @@ export async function callClaudeWithSchema<T extends z.ZodTypeAny>(
  * Analyze a workflow using the Claude API
  * @param events Array of events in the workflow to analyze
  * @param customPrompt Optional custom prompt to use
+ * @param roastingMode Whether to use roasting mode instead of normal analysis
  * @returns Promise that resolves to a WorkflowAnalysis object
  */
 export async function analyzeWorkflow(
   events: RawEvent[],
   customPrompt?: string,
+  roastingMode = false,
 ): Promise<WorkflowAnalysis> {
   // Generate the prompt early to include in error responses
-  const prompt = createPrompt(events, customPrompt);
+  const prompt = createPrompt(events, customPrompt, roastingMode);
 
   try {
     console.log('Analyzing workflow with Claude API, events count:', events.length);
