@@ -38,12 +38,12 @@ const WorkflowAnalysisSchema = z.object({
   workflowPrompt: z
     .string()
     .describe(
-      'A single, clear, and concise natural language instruction, including necessary parameters, that could be given to a browser automation tool (like a voice assistant or script) to execute this entire workflow. Should be actionable and specific. Example: "Log into example.com with username \'testuser\' and password \'password123\'" or "Search for \'blue widgets\', add the first result to the cart, and proceed to checkout."',
+      "A single, clear, and concise natural language instruction, including necessary parameters, that could be given to a browser automation tool (like a voice assistant or script) to execute this entire workflow. Should be actionable and specific. Example: \"Log into example.com with username 'testuser' and password 'password123'\" or \"Search for 'blue widgets', add the first result to the cart, and proceed to checkout.\"",
     ),
 });
 
 // Default Claude model
-const CLAUDE_MODEL = 'claude-opus-4-20250514';
+const CLAUDE_MODEL = 'claude-sonnet-4-0';
 
 // Get API key from environment variables - must use VITE_ prefix and import.meta.env
 const CLAUDE_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || '';
@@ -253,6 +253,49 @@ Use the json tool to provide your structured analysis.
 }
 
 /**
+ * Simple function to call Claude API for text generation
+ * @param prompt The prompt to send to Claude
+ * @returns Promise that resolves to Claude's text response
+ */
+export async function analyzeWithClaude(prompt: string): Promise<string> {
+  const apiKey = CLAUDE_API_KEY;
+  if (!apiKey) {
+    throw new Error('VITE_ANTHROPIC_API_KEY not configured');
+  }
+
+  try {
+    const anthropic = new Anthropic({
+      apiKey,
+      dangerouslyAllowBrowser: true,
+    });
+
+    const message = await anthropic.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    // Extract text from the response
+    const textContent = message.content.find(
+      (block): block is Anthropic.TextBlock => block.type === 'text',
+    );
+    if (!textContent) {
+      throw new Error('No text content in Claude response');
+    }
+
+    return textContent.text;
+  } catch (error) {
+    console.error('Error calling Claude API:', error);
+
+    if (error instanceof Anthropic.APIError) {
+      throw new Error(`Anthropic API error: ${error.status} - ${error.message}`);
+    }
+
+    throw error;
+  }
+}
+
+/**
  * Generic function to call Claude API with multiple tools
  * @param prompt The prompt to send to Claude
  * @param tools Array of tools to provide to Claude
@@ -282,8 +325,10 @@ export async function callClaudeWithTools(
     });
 
     // Extract tool use from the response
-    const toolUse = message.content.find((block: any) => block.type === 'tool_use');
-    if (!toolUse || toolUse.type !== 'tool_use') {
+    const toolUse = message.content.find(
+      (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',
+    );
+    if (!toolUse) {
       throw new Error('No tool use in Claude response');
     }
 
@@ -293,7 +338,7 @@ export async function callClaudeWithTools(
 
     // Handle specific Anthropic SDK errors
     if (error instanceof Anthropic.APIError) {
-      throw new Error(`Anthropic API error: ${(error as any).status} - ${(error as any).message}`);
+      throw new Error(`Anthropic API error: ${error.status} - ${error.message}`);
     }
 
     if (error instanceof Anthropic.AuthenticationError) {
@@ -305,7 +350,7 @@ export async function callClaudeWithTools(
     }
 
     if (error instanceof Anthropic.BadRequestError) {
-      throw new Error(`Bad request: ${(error as any).message}`);
+      throw new Error(`Bad request: ${error.message}`);
     }
 
     throw error;
@@ -338,7 +383,7 @@ export async function callClaudeWithSchema<T extends z.ZodTypeAny>(
 
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {
-      throw new Error(`Invalid response structure: ${(error as any).message}`);
+      throw new Error(`Invalid response structure: ${error.message}`);
     }
 
     // Re-throw API errors from callClaudeWithTools

@@ -1,1 +1,1 @@
-- Always do npm run build and fix any errors after executing
+- Always do pnpm build and fix any errors after executing

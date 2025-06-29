@@ -1,10 +1,9 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "files": {
-    "ignore": ["dist", "build", "node_modules", ".git"]
-  },
-  "organizeImports": {
-    "enabled": true
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
   },
   "linter": {
     "enabled": true,
@@ -24,5 +23,22 @@
       "semicolons": "always",
       "arrowParentheses": "asNeeded"
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.svelte", "**/*.astro", "**/*.vue"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useConst": "off",
+            "useImportType": "off"
+          },
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedImports": "off"
+          }
+        }
+      }
+    }
+  ]
 }

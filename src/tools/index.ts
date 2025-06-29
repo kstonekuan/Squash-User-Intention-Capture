@@ -1,3 +1,3 @@
+export { createJsonSchema, createJsonTool, JsonTool } from './json';
+export { createThinkTool, type ThinkResponse, ThinkTool } from './think';
 export type { ClaudeTool, ToolImplementation } from './types';
-export { JsonTool, createJsonTool, createJsonSchema } from './json';
-export { ThinkTool, createThinkTool, type ThinkResponse } from './think';

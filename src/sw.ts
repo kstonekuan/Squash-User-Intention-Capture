@@ -1,10 +1,13 @@
 import { analyzeWorkflow as analyzeWorkflowLocal, isAIModelAvailable } from './ai';
 import { saveChunk } from './db';
 import { exportData } from './export';
+import { type DetectedPattern, detectRepetitivePattern } from './pattern-detector';
 import {
   analyzeWorkflow as analyzeWorkflowRemote,
   isRemoteAIConfigured,
   isRemoteAIEnabled,
+  setRemoteAIEnabled,
+  testRemoteAI,
 } from './remote-ai';
 import type { Message, PortMessage, RawEvent, WorkflowAnalysis, WorkflowMarkers } from './types';
 
@@ -18,6 +21,152 @@ let lastPersistedIndex = 0;
 
 // Workflow markers
 let currentWorkflow: WorkflowMarkers | null = null;
+
+// Workflow mode management
+type WorkflowMode = 'idle' | 'manual_recording' | 'ambient_active';
+
+class WorkflowManager {
+  private mode: WorkflowMode = 'ambient_active';
+  private ambientChecker: NodeJS.Timeout | null = null;
+  private lastAmbientCheck = 0;
+
+  constructor() {
+    // Start ambient detection by default
+    this.startAmbientDetection();
+  }
+
+  getMode(): WorkflowMode {
+    return this.mode;
+  }
+
+  // Manual recording methods
+  startManualRecording() {
+    console.log('Starting manual recording, stopping ambient detection');
+
+    // Stop ambient detection completely
+    this.stopAmbientDetection();
+    this.mode = 'manual_recording';
+
+    // Notify connected panels about mode change
+    broadcastModeChange('manual_recording');
+  }
+
+  stopManualRecording() {
+    console.log('Stopping manual recording');
+    this.mode = 'idle';
+
+    // Notify connected panels about mode change
+    broadcastModeChange('idle');
+
+    // Resume ambient detection after a delay
+    setTimeout(() => {
+      if (this.mode === 'idle') {
+        console.log('Resuming ambient detection');
+        this.startAmbientDetection();
+      }
+    }, 5000); // 5 second delay before resuming ambient
+  }
+
+  // Ambient detection methods
+  private startAmbientDetection() {
+    if (this.mode !== 'manual_recording') {
+      this.mode = 'ambient_active';
+      console.log('Ambient detection started');
+
+      // Notify connected panels about mode change
+      broadcastModeChange('ambient_active');
+
+      // Check every minute
+      this.ambientChecker = setInterval(() => {
+        this.checkForPatterns();
+      }, 60000); // 1 minute
+
+      // Also check immediately
+      this.checkForPatterns();
+    }
+  }
+
+  private stopAmbientDetection() {
+    if (this.ambientChecker) {
+      clearInterval(this.ambientChecker);
+      this.ambientChecker = null;
+      console.log('Ambient detection stopped');
+    }
+  }
+
+  private async checkForPatterns() {
+    // Only run if still in ambient mode
+    if (this.mode !== 'ambient_active') return;
+
+    // Avoid checking too frequently
+    const now = Date.now();
+    if (now - this.lastAmbientCheck < 60000) return; // Minimum 1 minute between checks
+    this.lastAmbientCheck = now;
+
+    console.log('Checking for patterns...');
+    const pattern = await detectRepetitivePattern(ring);
+
+    if (pattern && pattern.confidence > 0.75) {
+      console.log('Pattern detected with confidence:', pattern.confidence);
+      await this.notifyUserOfPattern(pattern);
+    }
+  }
+
+  async notifyUserOfPattern(pattern: DetectedPattern) {
+    // Update badge to notify user
+    chrome.action.setBadgeText({ text: '!' });
+    chrome.action.setBadgeBackgroundColor({ color: '#FF9800' });
+
+    // Store pattern for panel display
+    await chrome.storage.local.set({
+      ambientPattern: {
+        pattern,
+        detectedAt: Date.now(),
+        status: 'pending_review',
+      },
+    });
+
+    // Notify all connected panels
+    broadcastPatternDetected(pattern);
+  }
+
+  // Method to dismiss detected pattern
+  async dismissPattern() {
+    // Clear badge
+    chrome.action.setBadgeText({ text: '' });
+
+    // Get current pattern before clearing
+    const result = await chrome.storage.local.get('ambientPattern');
+    if (result.ambientPattern) {
+      // Save to history with dismissed status
+      await this.savePatternToHistory(result.ambientPattern.pattern, 'dismissed');
+    }
+
+    // Clear from storage
+    await chrome.storage.local.remove('ambientPattern');
+  }
+
+  // Save pattern to history
+  async savePatternToHistory(pattern: DetectedPattern, status: 'analyzed' | 'dismissed') {
+    const result = await chrome.storage.local.get('patternHistory');
+    const history = result.patternHistory || [];
+
+    // Add to history
+    history.push({
+      pattern,
+      detectedAt: Date.now(),
+      status,
+    });
+
+    // Keep only last 50 patterns
+    const trimmedHistory = history.slice(-50);
+
+    await chrome.storage.local.set({ patternHistory: trimmedHistory });
+  }
+}
+
+// Create global workflow manager instance
+const workflowManager = new WorkflowManager();
 
 // Tab management
 chrome.tabs.onActivated.addListener(activeInfo => {
@@ -52,28 +201,41 @@ chrome.tabs.onRemoved.addListener(() => {
 });
 
 // Receive batched events from content script
-chrome.runtime.onMessage.addListener(async (msg: Message, _sender, sendResponse) => {
-  if (msg.kind === 'evtBatch' && msg.evts) push(msg.evts);
+chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
+  // Synchronous messages
+  if (msg.kind === 'evtBatch' && msg.evts) {
+    push(msg.evts);
+    sendResponse({ success: true });
+    return false;
+  }
 
   if (msg.kind === 'nav' && msg.url) {
     push([{ type: 'nav', url: msg.url, t: Date.now() }]);
+    sendResponse({ success: true });
+    return false;
   }
 
   if (msg.kind === 'export') {
     handleExport();
+    sendResponse({ success: true });
+    return false;
   }
 
   // Handle workflow marks
   if (msg.kind === 'mark') {
     handleWorkflowMark(msg.action);
+    sendResponse({ success: true });
+    return false;
   }
 
   // Handle manual workflow analysis request
   if (msg.kind === 'analyzeWorkflow') {
     handleWorkflowAnalysis();
+    sendResponse({ success: true });
+    return false;
   }
 
-  // Handle retry analysis request
+  // Async messages - return true to keep channel open
   if (msg.kind === 'retryAnalysis') {
     if (currentWorkflow && currentWorkflow.endIndex !== undefined) {
       handleWorkflowAnalysis();
@@ -81,38 +243,98 @@ chrome.runtime.onMessage.addListener(async (msg: Message, _sender, sendResponse)
     } else {
       sendResponse({ success: false, error: 'No workflow available to retry' });
     }
-    return true;
+    return false;
+  }
+
+  // Handle ambient pattern analysis request
+  if (msg.kind === 'analyzeAmbientPattern') {
+    (async () => {
+      try {
+        const stored = await chrome.storage.local.get('ambientPattern');
+        if (stored.ambientPattern?.pattern) {
+          const pattern = stored.ambientPattern.pattern as DetectedPattern;
+          // Convert pattern to workflow format for analysis
+          const analysis = await analyzePatternAsWorkflow(pattern);
+
+          // Save to history as analyzed
+          await workflowManager.savePatternToHistory(pattern, 'analyzed');
+
+          // Clear the current pattern notification
+          chrome.action.setBadgeText({ text: '' });
+          await chrome.storage.local.remove('ambientPattern');
+
+          sendResponse({ success: true, analysis });
+        } else {
+          sendResponse({ success: false, error: 'No ambient pattern found' });
+        }
+      } catch (error) {
+        sendResponse({ success: false, error: String(error) });
+      }
+    })();
+    return true; // Keep channel open for async response
+  }
+
+  // Handle ambient pattern dismissal
+  if (msg.kind === 'dismissAmbientPattern') {
+    (async () => {
+      await workflowManager.dismissPattern();
+      sendResponse({ success: true });
+    })();
+    return true; // Keep channel open for async response
   }
 
   // Handle remote AI settings
   if (msg.kind === 'setRemoteAI') {
-    try {
-      const { setRemoteAIEnabled } = await import('./remote-ai');
-      await setRemoteAIEnabled(msg.enabled);
-      // Make sure to return true so Chrome knows we'll call sendResponse later
-      sendResponse({ success: true });
-    } catch (error) {
-      console.error('Error setting remote AI:', error);
-      sendResponse({ success: false, error: String(error) });
-    }
-    return true; // Keep the message channel open for async response
+    (async () => {
+      try {
+        await setRemoteAIEnabled(msg.enabled);
+        sendResponse({ success: true });
+      } catch (error) {
+        console.error('Error setting remote AI:', error);
+        sendResponse({ success: false, error: String(error) });
+      }
+    })();
+    return true; // Keep channel open for async response
   }
 
   // Handle remote AI test
   if (msg.kind === 'testRemoteAI') {
-    try {
-      const { testRemoteAI } = await import('./remote-ai');
-      const result = await testRemoteAI();
-      sendResponse({ success: true, result });
-    } catch (error) {
-      console.error('Error testing remote AI:', error);
-      sendResponse({ success: false, error: String(error) });
-    }
-    return true; // Keep the message channel open for async response
+    (async () => {
+      try {
+        const result = await testRemoteAI();
+        sendResponse({ success: true, result });
+      } catch (error) {
+        console.error('Error testing remote AI:', error);
+        sendResponse({ success: false, error: String(error) });
+      }
+    })();
+    return true; // Keep channel open for async response
   }
 
+  // Handle manual pattern check
+  if (msg.kind === 'manualPatternCheck') {
+    (async () => {
+      try {
+        console.log('Manual pattern check requested');
+        const pattern = await detectRepetitivePattern(ring);
+
+        // If pattern is found with good confidence, trigger notification
+        if (pattern && pattern.confidence > 0.75) {
+          await workflowManager.notifyUserOfPattern(pattern);
+        }
+
+        sendResponse({ success: true, pattern });
+      } catch (error) {
+        console.error('Error checking patterns:', error);
+        sendResponse({ success: false, error: String(error) });
+      }
+    })();
+    return true; // Keep channel open for async response
+  }
+
+  // Default response
   sendResponse({ success: true });
-  return true; // Keep the message channel open for async responses
+  return false;
 });
 
 // Push events to ring buffer and broadcast to connected sidepanels
@@ -126,6 +348,30 @@ function push(events: RawEvent[]): void {
       port.postMessage({ delta: events } as PortMessage);
     } catch (error) {
       console.error('Error posting message to port:', error);
+      ports.delete(port);
+    }
+  }
+}
+
+// Broadcast mode change to all connected panels
+function broadcastModeChange(mode: WorkflowMode): void {
+  for (const port of ports) {
+    try {
+      port.postMessage({ modeChange: mode } as PortMessage);
+    } catch (error) {
+      console.error('Error broadcasting mode change:', error);
+      ports.delete(port);
+    }
+  }
+}
+
+// Broadcast pattern detection to all connected panels
+function broadcastPatternDetected(pattern: DetectedPattern): void {
+  for (const port of ports) {
+    try {
+      port.postMessage({ patternDetected: pattern } as PortMessage);
+    } catch (error) {
+      console.error('Error broadcasting pattern detection:', error);
       ports.delete(port);
     }
   }
@@ -178,6 +424,9 @@ function handleWorkflowMark(action: 'start' | 'stop'): void {
   push([markEvent]);
 
   if (action === 'start') {
+    // Use WorkflowManager to handle mode switching
+    workflowManager.startManualRecording();
+
     // Start a new workflow
     currentWorkflow = {
       startIndex: ring.length - 1,
@@ -189,6 +438,9 @@ function handleWorkflowMark(action: 'start' | 'stop'): void {
     currentWorkflow.endIndex = ring.length - 1;
     currentWorkflow.endTime = now;
     console.log('Workflow recording stopped', currentWorkflow);
+
+    // Use WorkflowManager to handle mode switching
+    workflowManager.stopManualRecording();
 
     // Automatically analyze the workflow
     handleWorkflowAnalysis();
@@ -242,8 +494,8 @@ async function handleLocalAnalysis(customPrompt?: string): Promise<void> {
     const workflowEvents = ring.slice(currentWorkflow.startIndex, currentWorkflow.endIndex + 1);
 
     // Check if roasting mode is enabled
-    const roastingMode = await new Promise<boolean>((resolve) => {
-      chrome.storage.local.get(['roasting_mode'], (result) => {
+    const roastingMode = await new Promise<boolean>(resolve => {
+      chrome.storage.local.get(['roasting_mode'], result => {
         resolve(result.roasting_mode === true);
       });
     });
@@ -285,8 +537,8 @@ async function handleRemoteAnalysis(customPrompt?: string): Promise<void> {
     const workflowEvents = ring.slice(currentWorkflow.startIndex, currentWorkflow.endIndex + 1);
 
     // Check if roasting mode is enabled
-    const roastingMode = await new Promise<boolean>((resolve) => {
-      chrome.storage.local.get(['roasting_mode'], (result) => {
+    const roastingMode = await new Promise<boolean>(resolve => {
+      chrome.storage.local.get(['roasting_mode'], result => {
         resolve(result.roasting_mode === true);
       });
     });
@@ -309,6 +561,66 @@ function broadcastAnalysis(analysis: WorkflowAnalysis): void {
     } catch (error) {
       console.error('Error posting analysis message to port:', error);
     }
+  }
+}
+
+// Analyze a detected pattern as if it were a manually recorded workflow
+async function analyzePatternAsWorkflow(pattern: DetectedPattern): Promise<WorkflowAnalysis> {
+  try {
+    // Check which AI to use
+    const useRemoteAI = await isRemoteAIEnabled();
+
+    if (useRemoteAI) {
+      const configured = await isRemoteAIConfigured();
+      if (!configured) {
+        return {
+          summary: 'Remote AI not configured',
+          steps: [
+            {
+              action: 'Configuration needed',
+              intent: 'Please configure your Anthropic API key in the Debug tab',
+            },
+          ],
+        };
+      }
+
+      // Analyze with remote AI
+      return await analyzeWorkflowRemote(
+        pattern.sequence,
+        'This is a repetitive pattern detected automatically. Analyze what the user is trying to accomplish.',
+      );
+    } else {
+      // Check local AI availability
+      const available = await isAIModelAvailable();
+      if (!available) {
+        return {
+          summary: 'Chrome AI not available',
+          steps: [
+            {
+              action: 'AI Model Unavailable',
+              intent: "Please ensure you're using Chrome 131+ and have enabled Chrome AI",
+            },
+          ],
+        };
+      }
+
+      // Analyze with local AI
+      return await analyzeWorkflowLocal(
+        pattern.sequence,
+        'This is a repetitive pattern detected automatically. Analyze what the user is trying to accomplish.',
+      );
+    }
+  } catch (error) {
+    console.error('Error analyzing pattern:', error);
+    return {
+      summary: 'Error analyzing pattern',
+      steps: [
+        {
+          action: 'Analysis failed',
+          intent: error instanceof Error ? error.message : 'Unknown error',
+        },
+      ],
+    };
   }
 }
 

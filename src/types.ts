@@ -8,13 +8,19 @@ export type Message =
   | { kind: 'analyzeWorkflow' }
   | { kind: 'retryAnalysis' }
   | { kind: 'setRemoteAI'; enabled: boolean }
-  | { kind: 'testRemoteAI' };
+  | { kind: 'testRemoteAI' }
+  | { kind: 'analyzeAmbientPattern' }
+  | { kind: 'dismissAmbientPattern' }
+  | { kind: 'toggleAmbientDetection'; enabled: boolean }
+  | { kind: 'manualPatternCheck' };
 
 // Port message types
 export type PortMessage =
   | { init: RawEvent[] }
   | { delta: RawEvent[] }
-  | { analysis: WorkflowAnalysis };
+  | { analysis: WorkflowAnalysis }
+  | { modeChange: 'idle' | 'manual_recording' | 'ambient_active' }
+  | { patternDetected: import('./pattern-detector').DetectedPattern };
 
 // Raw event types
 export type RawEvent =

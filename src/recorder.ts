@@ -5,6 +5,9 @@ const BATCH_MS = 500;
 const BATCH_MAX = 25;
 let batch: RawEvent[] = [];
 
+// Track if we've already detected an invalid context to avoid repeated errors
+let contextInvalidated = false;
+
 // Utility to get a good element descriptor for logging
 function getElementDescription(el: HTMLElement): string {
   // Get element tag name (with null check)
@@ -51,12 +54,31 @@ function getElementDescription(el: HTMLElement): string {
 
 // Flush batched events to background service worker
 function flush() {
-  if (!batch.length) return;
-  chrome.runtime.sendMessage({
-    kind: 'evtBatch',
-    evts: batch,
-  } as Message);
-  batch = [];
+  if (!batch.length || contextInvalidated) return;
+
+  try {
+    // Check if extension context is still valid
+    if (!chrome.runtime?.id) {
+      if (!contextInvalidated) {
+        console.warn('Extension context invalidated, stopping recorder');
+        contextInvalidated = true;
+        cleanup();
+      }
+      return;
+    }
+
+    chrome.runtime.sendMessage({
+      kind: 'evtBatch',
+      evts: batch,
+    } as Message);
+    batch = [];
+  } catch (error) {
+    if (!contextInvalidated) {
+      console.error('Error sending message to extension:', error);
+      contextInvalidated = true;
+      cleanup();
+    }
+  }
 }
 
 // Record an interaction event
@@ -66,7 +88,7 @@ function recordEvent(type: string, event: Event) {
 
     // Ensure target is an HTMLElement before proceeding
     if (!(event.target instanceof HTMLElement)) {
-      console.warn('Event target is not an HTMLElement', event.target);
+      // Silently ignore non-HTMLElement targets (like document or window)
       return;
     }
 
@@ -284,7 +306,23 @@ document.addEventListener(
     }
 
     scrollTimeout = window.setTimeout(() => {
-      recordEvent('scroll', e);
+      // Only record scroll events on actual elements, not the document
+      if (e.target instanceof HTMLElement) {
+        recordEvent('scroll', e);
+      } else if (e.target === document) {
+        // For document scroll, create a custom event with window as target
+        batch.push({
+          type: 'user',
+          target: 'window',
+          action: 'scroll',
+          t: Date.now(),
+          url: window.location.href,
+        });
+
+        if (batch.length >= BATCH_MAX) {
+          flush();
+        }
+      }
       scrollTimeout = null;
     }, 100); // Debounce to avoid too many events
   },
@@ -293,10 +331,16 @@ document.addEventListener(
 
 // Navigation events
 window.addEventListener('beforeunload', () => {
-  chrome.runtime.sendMessage({
-    kind: 'nav',
-    url: location.href,
-  } as Message);
+  try {
+    if (chrome.runtime?.id) {
+      chrome.runtime.sendMessage({
+        kind: 'nav',
+        url: location.href,
+      } as Message);
+    }
+  } catch (_error) {
+    // Silently ignore - page is unloading
+  }
 });
 
 // Page visibility changes
@@ -533,25 +577,88 @@ window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
   return originalFetch.call(window, input, init);
 };
 
+// Store interval ID for cleanup
+let flushInterval: ReturnType<typeof setInterval> | null = null;
+
+// Cleanup function to stop all event listeners
+function cleanup() {
+  if (flushInterval) {
+    clearInterval(flushInterval);
+    flushInterval = null;
+  }
+  console.log('Content script cleanup completed');
+}
+
 // Set interval to flush batched events
-setInterval(flush, BATCH_MS);
+try {
+  flushInterval = setInterval(() => {
+    if (contextInvalidated) {
+      if (flushInterval) {
+        clearInterval(flushInterval);
+        flushInterval = null;
+      }
+      return;
+    }
+
+    try {
+      // Check if extension context is still valid before flushing
+      if (!chrome.runtime?.id) {
+        if (!contextInvalidated) {
+          console.warn('Extension context invalidated, stopping recorder');
+          contextInvalidated = true;
+        }
+        if (flushInterval) {
+          clearInterval(flushInterval);
+          flushInterval = null;
+        }
+        return;
+      }
+      flush();
+    } catch (error) {
+      // If we get an error, it's likely the extension context is invalid
+      if (!contextInvalidated) {
+        console.warn(
+          'Extension context error, stopping recorder:',
+          error instanceof Error ? error.message : String(error),
+        );
+        contextInvalidated = true;
+      }
+      if (flushInterval) {
+        clearInterval(flushInterval);
+        flushInterval = null;
+      }
+    }
+  }, BATCH_MS);
+} catch (error) {
+  console.error('Failed to set up flush interval:', error);
+}
 
 // Record initial page view
-batch.push({
-  type: 'page',
-  action: 'visit',
-  t: Date.now(),
-  url: window.location.href,
-});
+try {
+  if (chrome.runtime?.id) {
+    batch.push({
+      type: 'page',
+      action: 'visit',
+      t: Date.now(),
+      url: window.location.href,
+    });
+  }
+} catch (error) {
+  console.error('Error recording initial page view:', error);
+}
 
 // Handle errors to prevent extension crashes
-chrome.runtime.onMessage.addListener((_message, _sender, sendResponse) => {
-  try {
-    // Handle any messages that might be sent to the content script
-    sendResponse();
-  } catch (error) {
-    console.error('Error in content script:', error);
-    sendResponse();
-  }
-  return true; // Keep the message channel open for async responses
-});
+try {
+  chrome.runtime.onMessage.addListener((_message, _sender, sendResponse) => {
+    try {
+      // Handle any messages that might be sent to the content script
+      sendResponse();
+    } catch (error) {
+      console.error('Error in content script:', error);
+      sendResponse();
+    }
+    return true; // Keep the message channel open for async responses
+  });
+} catch (error) {
+  console.error('Error setting up message listener:', error);
+}

@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { crx } from '@crxjs/vite-plugin';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 import dotenv from 'dotenv';
 import { defineConfig, loadEnv } from 'vite';
 
@@ -24,6 +25,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      svelte(),
       crx({
         manifest: {
           manifest_version: 3,
